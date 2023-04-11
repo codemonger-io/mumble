@@ -6,25 +6,20 @@ A collection of commands to retrieve and parse information from ActivityPub
 networks for traversal.
 """
 
+import itertools
 import json
 import logging
 import sys
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Generator, Iterable, List, Optional
 import click
 import jmespath
-import requests
+from libactivitypub.activity import Activity
+from libactivitypub.activity_stream import get as activity_stream_get
+from libactivitypub.actor import Actor, WebFinger
+from libactivitypub.collection import resolve_collection_page
 
 
 LOGGER = logging.getLogger(__name__)
-
-ACTIVITY_STREAM_MIME_TYPES = [
-    'application/activity+json',
-    'application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
-]
-
-DEFAULT_ACTIVITY_STREAM_MIME_TYPE = (
-    'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
-)
 
 
 def read_stdin() -> str:
@@ -35,18 +30,6 @@ def read_stdin() -> str:
     return sys.stdin.readline().rstrip()
 
 
-def get_account_domain(account: str) -> str:
-    """Returns the domain of a given account.
-
-    ``account`` must be in the form "<name>@<domain-name>"; e.g.,
-    "gargron@mastodon.social".
-
-    :raises ValueError: if ``account`` does not contain an atmark ('@').
-    """
-    _, domain = account.split('@', maxsplit=1)
-    return domain
-
-
 def print_jmespath_match(value: Any, query: str) -> Any:
     """Filters a given value with a specified JMESPath expression prints
     matching results.
@@ -55,7 +38,7 @@ def print_jmespath_match(value: Any, query: str) -> Any:
     Otherwise, prints it in a JSON representation.
     """
     match = jmespath.search(query, value)
-    if type(match) == str:
+    if isinstance(match, str):
         print(match)
     else:
         print(json.dumps(match, indent='  '))
@@ -68,29 +51,33 @@ def save_json(value: Any, json_path: str):
         json.dump(value, json_out, indent='  ')
 
 
-def resolve_collection_page(page: Union[str, Dict[str, Any]]) -> Dict[str, Any]:
-    """Resolves a given collection page.
+def filter_activities(
+    activities: Iterable[Activity],
+    filter_: str,
+) -> Generator[Activity, None, None]:
+    """Applies JMESPath expression to each activity given by an iterable.
 
-    ``page`` may be a URI, a link object, or a collection page itself.
+    ``filter_`` is a JMESPath expression that is not applied to the entire
+    collection (array) but to individual activities.
+
+    Activities that becomes ``None`` as a result of ``filter_`` will be
+    omitted.
+
+    Returns a generator of activities.
+    Note that the results of ``quer`` are discarded.
     """
-    # resolves the page if necessary
-    page_ref: Optional[str] = None
-    if type(page) == str:
-        page_ref = page
-    elif page.get('type') == 'Link':
-        page_ref = page['href']
-    if page_ref is not None:
-        res = requests.get(page_ref, headers={
-            'Accept': DEFAULT_ACTIVITY_STREAM_MIME_TYPE,
-        })
-        res.raise_for_status()
-        page = res.json()
-    return page
+    expression = jmespath.compile(filter_)
+    for activity in activities:
+        filtered = expression.search(activity._underlying) # pylint: disable=protected-access
+        if filtered is not None:
+            yield activity
 
 
 @click.group()
 @click.option('--debug', is_flag=True, help='turns on debug messages')
 def cli(debug: bool):
+    """Simple browser for ActivityPub networks.
+    """
     if debug:
         logging.basicConfig(level=logging.DEBUG)
         LOGGER.setLevel(logging.DEBUG)
@@ -120,51 +107,13 @@ def finger(account: str, dump: Optional[str]):
         LOGGER.debug('reading ACCOUNT from STDIN')
         account = read_stdin()
     LOGGER.debug('fingering: %s', account)
-    try:
-        domain = get_account_domain(account)
-    except ValueError:
-        LOGGER.error(
-            'ACCOUNT must be in the form "<name>@<domain-name>";'
-            ' e.g., gargron@mastodon.social',
-        )
-        sys.exit(1)
-    endpoint = f'https://{domain}/.well-known/webfinger?resource=acct:{account}'
-    LOGGER.debug('getting: %s', endpoint)
-    res = requests.get(endpoint, headers={
-        'Accept': 'application/json',
-    })
-    res.raise_for_status()
-    data = res.json()
+    finger_ = WebFinger.finger(account)
     if dump:
         LOGGER.debug('saving WebFinger results: %s', dump)
-        save_json(data, dump)
+        save_json(finger_._underlying, dump) # pylint: disable=protected-access
     # locates the link with ActivityStream mime-type
     # chooses the one with rel=self if there are more than one such links
-    links = data['links']
-    links = [l for l in links if l.get('type') in ACTIVITY_STREAM_MIME_TYPES]
-    if len(links) > 1:
-        LOGGER.warning('there are more than one actor URIs: %d', len(links))
-        links = [l for l in links if l.get('rel') == 'self']
-        if len(links) > 1:
-            # warns but chooses the first link
-            LOGGER.warning(
-                'there are more than one "self" actor URIs: %d',
-                len(links),
-            )
-    print(links[0]['href'])
-
-
-# keys of an actor to be printed by default.
-ACTOR_DEFAULT_OUTPUT_KEYS = [
-    'name',
-    'preferredUsername',
-    'inbox',
-    'outbox',
-    'following',
-    'followers',
-    'featured',
-    'featuredTags',
-]
+    print(finger_.actor_uri)
 
 
 @cli.command()
@@ -189,7 +138,7 @@ ACTOR_DEFAULT_OUTPUT_KEYS = [
         ' nothing is saved if omitted.'
     ),
 )
-def actor(actor: str, query: Optional[str], dump: Optional[str]):
+def actor(actor: str, query: str, dump: Optional[str]): # pylint: disable=redefined-outer-name
     """Obtains an actor.
 
     ACTOR is the actor URI to obtain the profile.
@@ -199,11 +148,7 @@ def actor(actor: str, query: Optional[str], dump: Optional[str]):
         LOGGER.debug('reading ACTOR from STDIN')
         actor = read_stdin()
     LOGGER.debug('getting profile: %s', actor)
-    res = requests.get(actor, headers={
-        'Accept': DEFAULT_ACTIVITY_STREAM_MIME_TYPE,
-    })
-    res.raise_for_status()
-    data = res.json()
+    data = activity_stream_get(actor)
     if dump is not None:
         LOGGER.debug('saving actor information: %s', dump)
         save_json(data, dump)
@@ -242,9 +187,9 @@ def actor(actor: str, query: Optional[str], dump: Optional[str]):
     ),
 )
 def collection(
-    collection: str,
+    collection: str, # pylint: disable=redefined-outer-name
     page: int,
-    query: Optional[str],
+    query: str,
     dump: Optional[str],
 ):
     """Pulls a collection.
@@ -257,11 +202,7 @@ def collection(
         LOGGER.debug('reading COLLECTION from STDIN')
         collection = read_stdin()
     LOGGER.debug('pulling collection: %s', collection)
-    res = requests.get(collection, headers={
-        'Accept': DEFAULT_ACTIVITY_STREAM_MIME_TYPE,
-    })
-    res.raise_for_status()
-    data = res.json()
+    data = activity_stream_get(collection)
     LOGGER.debug('number of total items: %d', data.get('totalItems'))
     items: Optional[List[Dict[str, Any]]]
     items = data.get('items') or data.get('orderedItems')
@@ -314,7 +255,7 @@ def collection(
         ' no object is saved if omitted.'
     ),
 )
-def object(object: str, query: Optional[str], dump: Optional[str]):
+def object(object: str, query: str, dump: Optional[str]): # pylint: disable=redefined-builtin, redefined-outer-name
     """Obtains an object.
 
     OBJECT is the object URI to obtain.
@@ -324,11 +265,7 @@ def object(object: str, query: Optional[str], dump: Optional[str]):
         LOGGER.debug('reading OBJECT from STDIN')
         object = read_stdin()
     LOGGER.debug('obtaining object: %s', object)
-    res = requests.get(object, headers={
-        'Accept': DEFAULT_ACTIVITY_STREAM_MIME_TYPE,
-    })
-    res.raise_for_status()
-    data = res.json()
+    data = activity_stream_get(object)
     if dump is not None:
         LOGGER.debug('saving the pulled object: %s', dump)
         save_json(data, dump)
@@ -336,5 +273,45 @@ def object(object: str, query: Optional[str], dump: Optional[str]):
     print_jmespath_match(data, query)
 
 
+@cli.command()
+@click.argument('account', type=str)
+@click.option(
+    '--num-activities',
+    metavar='NACTS',
+    type=int,
+    default=20,
+    help=(
+        'number of activities to pull. this number counts activities after'
+        ' FILTER is applied. 20 by default.'
+    ),
+)
+@click.option(
+    '--filter',
+    metavar='FILTER',
+    type=str,
+    default='@',
+    help=(
+        'JMESPath expression to filter the pulled activities. this expression'
+        ' is applied to each activity, and an activity is collected if this'
+        ' expression results in a non-null value (results are discarded). all'
+        ' the activities are collected if omitted.'
+    ),
+)
+def pull_activities(account: str, num_activities: int, filter: str): # pylint: disable=redefined-builtin
+    """Pulls latest activities from a given account.
+
+    ACCOUNT must be a WebFinger ID; e.g., "gargron@mastodon.social".
+    """
+    LOGGER.debug('pulling activities from %s', account)
+    LOGGER.debug('resolving actor: %s', account)
+    actor_ = Actor.resolve_webfinger_id(account)
+    LOGGER.debug('pulling activities in the outbox with filter %s', filter)
+    activities: Iterable[Activity] = itertools.islice(
+        filter_activities(actor_.outbox, filter),
+        num_activities,
+    )
+    print(json.dumps([a._underlying for a in activities], indent='  ')) # pylint: disable=protected-access
+
+
 if __name__ == '__main__':
-    cli()
+    cli({})
