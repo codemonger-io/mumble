@@ -1,0 +1,10 @@
+# Python artifacts
+__pycache__
+*.egg-info
+
+# editor artifacts
+*~
+*.swp
+
+# platform specific artifacts
+.DS_Store
