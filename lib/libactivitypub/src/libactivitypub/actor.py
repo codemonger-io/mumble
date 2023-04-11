@@ -1,0 +1,119 @@
+# -*- coding: utf-8 -*-
+
+"""Access to actors on ActivityPub networks.
+"""
+
+from functools import cached_property
+import logging
+from typing import Any, Dict
+import requests
+from .activity_stream import (
+    DEFAULT_REQUEST_TIMEOUT,
+    get as activity_stream_get,
+)
+from .mime_types import ACTIVITY_STREAM_MIME_TYPES
+from .outbox import Outbox
+from .utils import parse_webfinger_id
+
+
+LOGGER = logging.getLogger('libactivitypub.actor')
+LOGGER.setLevel(logging.DEBUG)
+
+
+class WebFinger:
+    """Wraps WebFinger query results.
+    """
+    account: str
+    """WebFinger ID of the account."""
+
+    def __init__(self, account: str, underlying: Dict[str, Any]):
+        """Initializes with given WebFinger query results.
+        """
+        self.account = account
+        self._underlying = underlying
+
+    @staticmethod
+    def finger(account: str) -> 'WebFinger':
+        """Queries a WebFinger for a given account.
+
+        :raises ValueError: if ``account`` is not a valid WebFinger ID.
+
+        :raises requests.HTTPError: if an HTTP request fails.
+        """
+        _, domain = parse_webfinger_id(account)
+        endpoint = f'https://{domain}/.well-known/webfinger?resource=acct:{account}'
+        LOGGER.debug('GETting: %s', endpoint)
+        res = requests.get(
+            endpoint,
+            headers={
+                'Accept': 'application/json',
+            },
+            timeout=DEFAULT_REQUEST_TIMEOUT,
+        )
+        res.raise_for_status()
+        underlying = res.json()
+        return WebFinger(account, underlying)
+
+    @cached_property
+    def actor_uri(self):
+        """Actor URI (ID).
+
+        :raises AttributeError: if no actor URI is provide.
+        """
+        try:
+            links = self._underlying['links']
+            links = [
+                l for l in links if l.get('type') in ACTIVITY_STREAM_MIME_TYPES
+            ]
+            if len(links) > 1:
+                LOGGER.warning(
+                    'there are more than one actor URIs: %d',
+                    len(links),
+                )
+                links = [l for l in links if l.get('rel') == 'self']
+                if len(links) > 1:
+                    # warns but chooses the first link
+                    LOGGER.warning(
+                        'there are more than one "self" actor URIs: %d',
+                        len(links),
+                    )
+            return links[0]['href']
+        except (IndexError, KeyError) as exc:
+            raise AttributeError('no Actor URI is provided') from exc
+
+
+class Actor:
+    """Actor on ActivityPub networks.
+    """
+    def __init__(self, underlying: Dict[str, Any]):
+        """Initializes with given underlying data.
+        """
+        self._underlying = underlying
+
+    @staticmethod
+    def resolve_webfinger_id(account: str):
+        """Resolves an actor associated with a given WebFinger ID; e.g.,
+        Mastodon account ID.
+
+        :raises ValueError: if ``account`` is not a valid WebFinger ID,
+        or if no ActivityPub actor is associated with ``account``.
+
+        :raises requests.HTTPError: if an HTTP request fails.
+        """
+        finger = WebFinger.finger(account)
+        try:
+            LOGGER.debug('requesting actor: %s', finger.actor_uri)
+            underlying = activity_stream_get(finger.actor_uri)
+            return Actor(underlying)
+        except AttributeError as exc:
+            raise ValueError(f'no actor associated with "{account}"') from exc
+
+    @property
+    def outbox(self) -> Outbox:
+        """Outbox of the actor.
+
+        :raises AttributeError: if no outbox is provided.
+        """
+        if 'outbox' not in self._underlying:
+            raise AttributeError('no outbox is provided')
+        return Outbox(self._underlying['outbox'])
