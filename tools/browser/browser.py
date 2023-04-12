@@ -17,6 +17,7 @@ from libactivitypub.activity import Activity
 from libactivitypub.activity_stream import get as activity_stream_get
 from libactivitypub.actor import Actor, WebFinger
 from libactivitypub.collection import resolve_collection_page
+from libactivitypub.objects import ObjectStore
 
 
 LOGGER = logging.getLogger(__name__)
@@ -75,7 +76,7 @@ def filter_activities(
 
 @click.group()
 @click.option('--debug', is_flag=True, help='turns on debug messages')
-def cli(debug: bool):
+def cli(debug: bool=False):
     """Simple browser for ActivityPub networks.
     """
     if debug:
@@ -306,12 +307,21 @@ def pull_activities(account: str, num_activities: int, filter: str): # pylint: d
     LOGGER.debug('resolving actor: %s', account)
     actor_ = Actor.resolve_webfinger_id(account)
     LOGGER.debug('pulling activities in the outbox with filter %s', filter)
-    activities: Iterable[Activity] = itertools.islice(
+    activities: Iterable[Activity] = list(itertools.islice(
         filter_activities(actor_.outbox, filter),
         num_activities,
-    )
-    print(json.dumps([a._underlying for a in activities], indent='  ')) # pylint: disable=protected-access
+    ))
+    LOGGER.debug('collecting referenced objects')
+    object_store = ObjectStore([actor_])
+    for activity in activities:
+        activity.resolve_objects(object_store)
+    # builds outputs
+    outputs = {
+        'activities': [a.to_dict() for a in activities],
+        'referenced': [o.to_dict() for o in object_store._dict.values()],
+    }
+    print(json.dumps(outputs, indent='  '))
 
 
 if __name__ == '__main__':
-    cli({})
+    cli()
