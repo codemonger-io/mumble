@@ -41,7 +41,7 @@ class Outbox:
         current_page = 1
         while items is not None:
             for item in items:
-                yield Activity(item)
+                yield Activity.parse_object(item)
             # resolves the next page if exists
             if next_page is None:
                 break

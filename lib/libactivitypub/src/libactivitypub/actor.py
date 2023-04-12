@@ -12,6 +12,7 @@ from .activity_stream import (
     get as activity_stream_get,
 )
 from .mime_types import ACTIVITY_STREAM_MIME_TYPES
+from .objects import DictObject
 from .outbox import Outbox
 from .utils import parse_webfinger_id
 
@@ -82,14 +83,9 @@ class WebFinger:
             raise AttributeError('no Actor URI is provided') from exc
 
 
-class Actor:
+class Actor(DictObject):
     """Actor on ActivityPub networks.
     """
-    def __init__(self, underlying: Dict[str, Any]):
-        """Initializes with given underlying data.
-        """
-        self._underlying = underlying
-
     @staticmethod
     def resolve_webfinger_id(account: str):
         """Resolves an actor associated with a given WebFinger ID; e.g.,
