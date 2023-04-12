@@ -6,6 +6,7 @@
 from abc import abstractmethod
 import logging
 from typing import Any, Dict, Iterable, Optional, Union
+import requests
 from .objects import ACTOR_TYPES, APObject, DictObject, Reference, ObjectStore
 
 
@@ -110,12 +111,23 @@ class MessageActivity(Activity):
         Ignores targets other than an actor.
 
         :raises requests.HTTPError: if an HTTP request fails.
+        but an unauthorized (401) error is ignored with a warning message.
         """
         if isinstance(targets, str):
             MessageActivity.resolve_target(targets, object_store)
         else:
             for target in targets:
-                MessageActivity.resolve_target(target, object_store)
+                try:
+                    MessageActivity.resolve_target(target, object_store)
+                except requests.HTTPError as exc:
+                    # ignores an unauthorized target
+                    if exc.response.status_code == 401:
+                        LOGGER.warning(
+                            'unauthorized access to target: %s',
+                            target,
+                        )
+                    else:
+                        raise exc
 
     @staticmethod
     def resolve_target(target_ref: str, object_store: ObjectStore):
@@ -153,15 +165,13 @@ class Announce(MessageActivity):
 
     def resolve_objects(self, object_store: ObjectStore):
         """Resolves the referenced object.
+
+        Resolves ``object``.
         """
         super().resolve_objects(object_store)
         # resolves the object
         if 'object' in self._underlying:
-            obj_ref = Reference(self._underlying['object'])
-            obj = object_store.get(obj_ref.id)
-            if obj is None:
-                obj = DictObject.resolve(obj_ref.ref)
-                object_store.add(obj)
+            resolve_object(self._underlying['object'], object_store)
 
 
 class Create(MessageActivity):
@@ -180,12 +190,44 @@ class Create(MessageActivity):
 
     def resolve_objects(self, object_store: ObjectStore):
         """Resolves the referenced object.
+
+        Resolves ``object``.
         """
         super().resolve_objects(object_store)
-        # resolves the object
         if 'object' in self._underlying:
-            obj_ref = Reference(self._underlying['object'])
-            obj = object_store.get(obj_ref.id)
-            if obj is None:
-                obj = DictObject.resolve(obj_ref.ref)
-                object_store.add(obj)
+            resolve_object(self._underlying['object'], object_store)
+
+
+def resolve_object(
+    maybe_obj: Union[str, Dict[str, Any]],
+    object_store: ObjectStore,
+) -> Optional[APObject]:
+    """Resolves an object and stores in an ``ObjectStore``.
+
+    ``maybe_obj`` may be a URI, or a link object, or a ``dict`` representation
+    of the object itself.
+
+    Returns the object in ``object_store`` if there is one associated with the
+    object ID.
+
+    Returns ``None`` if access to the object is unauthorized.
+
+    :raise requests.HTTPError: if an HTTP request fails.
+    but an unauthorized (401) error is ignored with a warning message.
+
+    :raise ValueError: if the object data is invalid.
+    """
+    obj_ref = Reference(maybe_obj)
+    obj = object_store.get(obj_ref.id)
+    if obj is None:
+        try:
+            obj = DictObject.resolve(obj_ref.ref)
+        except requests.HTTPError as exc:
+            # ignores an unauthorized object with a warning
+            if exc.response.status_code == 401:
+                LOGGER.warning('unauthorized object: %s', obj_ref.ref)
+            else:
+                raise exc
+        else:
+            object_store.add(obj)
+    return obj
