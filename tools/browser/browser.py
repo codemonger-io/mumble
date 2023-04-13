@@ -118,15 +118,15 @@ def finger(account: str, dump: Optional[str]):
 
 
 @cli.command()
-@click.argument('actor', type=str)
+@click.argument('object', type=str)
 @click.option(
     '--query',
     metavar='JMESPATH',
     type=str,
     default='@',
     help=(
-        'JMESPath expression the filters information in the pulled actor to be'
-        ' printed. all the information is printed if omitted.'
+        'JMESPath expression to filter the information in the obtained object'
+        ' to be printed. the entire object is printed if omitted.'
     ),
 )
 @click.option(
@@ -135,26 +135,25 @@ def finger(account: str, dump: Optional[str]):
     type=str,
     default=None,
     help=(
-        'path to a file where obtained actor information is to be saved.'
-        ' nothing is saved if omitted.'
+        'path to a file where the pulled object is to be saved.'
+        ' no object is saved if omitted.'
     ),
 )
-def actor(actor: str, query: str, dump: Optional[str]): # pylint: disable=redefined-outer-name
-    """Obtains an actor.
+def object(object: str, query: str, dump: Optional[str]): # pylint: disable=redefined-builtin, redefined-outer-name
+    """Obtains an object.
 
-    ACTOR is the actor URI to obtain the profile.
-    The actor URI is read from the standard input if ACTOR is '-'.
+    OBJECT is the object URI to obtain.
+    The object URI is read from the standard input if OBJECT is '-'.
     """
-    if actor == '-':
-        LOGGER.debug('reading ACTOR from STDIN')
-        actor = read_stdin()
-    LOGGER.debug('getting profile: %s', actor)
-    data = activity_stream_get(actor)
+    if object == '-':
+        LOGGER.debug('reading OBJECT from STDIN')
+        object = read_stdin()
+    LOGGER.debug('obtaining object: %s', object)
+    data = activity_stream_get(object)
     if dump is not None:
-        LOGGER.debug('saving actor information: %s', dump)
+        LOGGER.debug('saving the pulled object: %s', dump)
         save_json(data, dump)
-    LOGGER.debug('actor id: %s', data['id'])
-    LOGGER.debug('filtering actor information with: %s', query)
+    LOGGER.debug('filtering object with: %s', query)
     print_jmespath_match(data, query)
 
 
@@ -232,46 +231,6 @@ def collection(
         save_json(items, dump)
     LOGGER.debug('filtering items with: %s', query)
     print_jmespath_match(items, query)
-
-
-@cli.command()
-@click.argument('object', type=str)
-@click.option(
-    '--query',
-    metavar='JMESPATH',
-    type=str,
-    default='@',
-    help=(
-        'JMESPath expression to filter the information in the obtained object'
-        ' to be printed. the entire object is printed if omitted.'
-    ),
-)
-@click.option(
-    '--dump',
-    metavar='DUMP',
-    type=str,
-    default=None,
-    help=(
-        'path to a file where the pulled object is to be saved.'
-        ' no object is saved if omitted.'
-    ),
-)
-def object(object: str, query: str, dump: Optional[str]): # pylint: disable=redefined-builtin, redefined-outer-name
-    """Obtains an object.
-
-    OBJECT is the object URI to obtain.
-    The object URI is read from the standard input if OBJECT is '-'.
-    """
-    if object == '-':
-        LOGGER.debug('reading OBJECT from STDIN')
-        object = read_stdin()
-    LOGGER.debug('obtaining object: %s', object)
-    data = activity_stream_get(object)
-    if dump is not None:
-        LOGGER.debug('saving the pulled object: %s', dump)
-        save_json(data, dump)
-    LOGGER.debug('filtering object with: %s', query)
-    print_jmespath_match(data, query)
 
 
 @cli.command()
