@@ -1,0 +1,94 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "mumble-api-development",
+    "description": "Mumble endpoints API (development)",
+    "version": "0.0.1"
+  },
+  "paths": {
+    "/": {},
+    "/.well-known": {},
+    "/.well-known/webfinger": {
+      "get": {
+        "parameters": [
+          {
+            "description": "Account to be WebFingered",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "acct%3Agargron%40mastodon.social",
+            "name": "resource",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MumbleApimumbleapidevelopmentWebFinger3A886EC9"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "account is invalid"
+          },
+          "404": {
+            "description": "account is not found"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "MumbleApimumbleapidevelopmentWebFinger3A886EC9": {
+        "description": "WebFinter response",
+        "properties": {
+          "subject": {
+            "description": "Subject URI",
+            "example": "acct:Gargron@mastodon.social",
+            "type": "string"
+          },
+          "links": {
+            "description": "Links associated with the subject",
+            "items": {
+              "description": "Link item",
+              "properties": {
+                "rel": {
+                  "description": "Relation type of the linked object",
+                  "example": "self",
+                  "type": "string"
+                },
+                "type": {
+                  "description": "Media type of the linked object",
+                  "example": "application/activity+json",
+                  "type": "string"
+                },
+                "href": {
+                  "description": "URI of the linked object",
+                  "example": "https://mastodon.social/users/Gargron",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "rel"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "subject"
+        ],
+        "title": "WebFinger",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {}
+  }
+}
