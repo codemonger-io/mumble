@@ -24,5 +24,12 @@ export class CdkStack extends cdk.Stack {
       deploymentStage,
       lambdaDependencies,
     });
+
+    // outputs
+    // - Mumble API distribution domain name
+    new cdk.CfnOutput(this, 'MumbleApiDistributionDomainName', {
+      description: 'CloudFront distribution domain name of the Mumble endpoints API',
+      value: mumbleApi.distribution.distributionDomainName,
+    });
   }
 }

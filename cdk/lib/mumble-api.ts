@@ -2,6 +2,8 @@ import * as path from 'path';
 import {
   Duration,
   aws_apigateway as apigateway,
+  aws_cloudfront as cloudfront,
+  aws_cloudfront_origins as origins,
   aws_lambda as lambda,
 } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
@@ -29,6 +31,8 @@ export interface Props {
 export class MumbleApi extends Construct {
   /** REST API that serves as the Mumble endpoints API. */
   readonly api: RestApiWithSpec;
+  /** CloudFront distribution of the Mumble endpoints API. */
+  readonly distribution: cloudfront.IDistribution;
 
   constructor(scope: Construct, id: string, props: Props) {
     super(scope, id);
@@ -130,10 +134,18 @@ export class MumbleApi extends Construct {
         proxy: false,
         passthroughBehavior: apigateway.PassthroughBehavior.NEVER,
         requestTemplates: {
+          // X-Host-Header is given if the request comes from the CloudFront
+          // distribution (only in development), and it must be used to verify
+          // the requested domain (`apiDomainName`).
+          // Otherwise, `apiDomainName` equals that of API Gateway.
           // TODO: add rel
           'application/json': `{
             "resource": "$util.escapeJavaScript($util.urlDecode($input.params('resource')))",
+            #if ($input.params('x-host-header') != '')
+            "apiDomainName": "$util.escapeJavaScript($input.params('x-host-header'))"
+            #else
             "apiDomainName": "$context.domainName"
+            #end
           }`,
         },
         integrationResponses: [
@@ -174,6 +186,61 @@ export class MumbleApi extends Construct {
             description: 'account is not found',
           },
         ],
+      },
+    );
+
+    // configures the CloudFront distribution
+    // - cache policy
+    const cachePolicy = new cloudfront.CachePolicy(
+      this,
+      'MumbleApiCachePolicy',
+      {
+        comment: `Mumble API cache policy (${deploymentStage})`,
+        // X-Host-Header must be forwarded in development
+        headerBehavior: deploymentStage === 'development'
+          ? cloudfront.CacheHeaderBehavior.allowList('X-Host-Header')
+          : undefined,
+        // TODO: should we narrow query strings?
+        queryStringBehavior: cloudfront.CacheQueryStringBehavior.all(),
+        // TODO: set longer duration for production
+        defaultTtl: Duration.seconds(30),
+      },
+    );
+    // - CloudFront functions (provided only in development)
+    const functionAssociations: cloudfront.FunctionAssociation[] = [];
+    if (deploymentStage === 'development') {
+      // forwards Host header to the origin as X-Host-Header
+      functionAssociations.push(
+        {
+          eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+          function: new cloudfront.Function(
+            this,
+            'ForwardHostHeaderCF',
+            {
+              comment: 'Forwards the Host header to the origin as X-Host-Header.',
+              code: cloudfront.FunctionCode.fromFile({
+                filePath: path.join('cloudfront-fn', 'forward-host-header.js'),
+              }),
+            },
+          ),
+        },
+      );
+    }
+    // - distribution
+    this.distribution = new cloudfront.Distribution(
+      this,
+      `MumbleApiDistribution`,
+      {
+        comment: `Mumble API distribution (${deploymentStage})`,
+        defaultBehavior: {
+          origin: new origins.RestApiOrigin(this.api),
+          cachePolicy,
+          allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
+          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.HTTPS_ONLY,
+          functionAssociations,
+        },
+        enableLogging: true,
+        // TODO: set domain name and certificate for production
       },
     );
   }
