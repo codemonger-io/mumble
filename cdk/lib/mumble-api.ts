@@ -38,6 +38,7 @@ export class MumbleApi extends Construct {
     super(scope, id);
 
     const { deploymentStage, lambdaDependencies } = props;
+    const { libActivityPub, libMumble } = lambdaDependencies;
 
     // Lambda functions
     // - responds to a WebFinger request
@@ -48,7 +49,7 @@ export class MumbleApi extends Construct {
       entry: path.join('lambda', 'web_finger'),
       index: 'index.py',
       handler: 'lambda_handler',
-      layers: [lambdaDependencies.libActivityPub],
+      layers: [libActivityPub, libMumble],
       memorySize: 128,
       timeout: Duration.seconds(5),
       // TODO: specify DOMAIN_NAME in production
@@ -86,7 +87,7 @@ export class MumbleApi extends Construct {
           subject: {
             description: 'Subject URI',
             type: apigateway.JsonSchemaType.STRING,
-            example: 'acct:Gargron@mastodon.social',
+            example: 'acct:kemoto@mumble.codemonger.io',
           },
           links: {
             description: 'Links associated with the subject',
@@ -108,7 +109,7 @@ export class MumbleApi extends Construct {
                 href: {
                   description: 'URI of the linked object',
                   type: apigateway.JsonSchemaType.STRING,
-                  example: 'https://mastodon.social/users/Gargron',
+                  example: 'https://mumble.codemonger.io/users/kemoto',
                 },
                 // TODO: add titles
                 // TODO: properties
@@ -138,6 +139,7 @@ export class MumbleApi extends Construct {
           // distribution (only in development), and it must be used to verify
           // the requested domain (`apiDomainName`).
           // Otherwise, `apiDomainName` equals that of API Gateway.
+          // DO NOT rely on `apiDomainName` in production
           // TODO: add rel
           'application/json': `{
             "resource": "$util.escapeJavaScript($util.urlDecode($input.params('resource')))",
@@ -151,6 +153,7 @@ export class MumbleApi extends Construct {
         integrationResponses: [
           catchErrorsWith(404, 'UnexpectedDomainError', 'NotFoundError'),
           catchErrorsWith(400, 'BadRequestError'),
+          catchErrorsWith(500, 'BadConfigurationError'),
           {
             statusCode: '200',
           },
@@ -165,7 +168,7 @@ export class MumbleApi extends Construct {
             schema: {
               type: 'string',
             },
-            example: 'acct%3Agargron%40mastodon.social',
+            example: 'acct%3Akemoto%40mumble.codemonger.io',
           },
           // TODO: add rel
         },
@@ -184,6 +187,10 @@ export class MumbleApi extends Construct {
           {
             statusCode: '404',
             description: 'account is not found',
+          },
+          {
+            statusCode: '500',
+            description: 'internal server error',
           },
         ],
       },

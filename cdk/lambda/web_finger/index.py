@@ -12,60 +12,18 @@ You can specify the following optional environment variable,
 import logging
 import os
 from libactivitypub.utils import parse_acct_uri
+from libmumble.exceptions import (
+    BadConfigurationError,
+    BadRequestError,
+    NotFoundError,
+    UnexpectedDomainError,
+)
 
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.DEBUG)
 
 DOMAIN_NAME = os.environ.get('DOMAIN_NAME')
-
-
-class MumbleBaseException(Exception):
-    """Base exception.
-    """
-    message: str
-    """Brief explanation about the problem."""
-
-    def __init__(self, message: str):
-        """Initializes with a given message.
-        """
-        self.message = message
-
-    def __str__(self):
-        class_name = type(self).__name__
-        return f'{class_name}({self.message})'
-
-    def __rerp__(self):
-        class_name = type(self).__name__
-        return f'{class_name}({repr(self.message)})'
-
-
-class BadRequestError(MumbleBaseException):
-    """Raised if the request is invalid.
-    """
-
-
-class UnexpectedDomainError(MumbleBaseException):
-    """Raised if the domain name is unexpected.
-    """
-
-
-class NotFoundError(MumbleBaseException):
-    """Raised if the account is not found.
-    """
-
-
-def parse_resource(resource: str) -> str:
-    """Parses a given "resource" query parameter.
-
-    Revmoes the prefix "acct:" from ``resource``.
-
-    :raises BadRequestError: if ``resource`` does not start with "acct:".
-    """
-    prefix = 'acct:'
-    if not resource.startswith(prefix):
-        raise BadRequestError('resource must start with "{prefix}": resource')
-    return resource[len(prefix):]
 
 
 def lambda_handler(event, _context):
@@ -108,9 +66,17 @@ def lambda_handler(event, _context):
     match the domain name that this function supposes.
 
     :raises NotFoundError: if the account is not found.
+
+    :raises BadConfigurationError: if the domain name of the Mumble endpoints
+    API is not configured.
     """
     LOGGER.debug('handling a WebFinger request: %s', event)
-    host_domain_name = DOMAIN_NAME or event['apiDomainName']
+    host_domain_name = DOMAIN_NAME or event.get('apiDomainName')
+    LOGGER.debug('Mumble endpoints API domain name: %s', host_domain_name)
+    if not host_domain_name:
+        raise BadConfigurationError(
+            'Mumble endpoints API domain name must be configured',
+        )
     try:
         name, domain_name = parse_acct_uri(event['resource'])
     except ValueError as exc:
