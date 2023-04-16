@@ -10,6 +10,8 @@ import { PythonLibraryLayer } from 'cdk2-python-library-layer';
 export class LambdaDependencies extends Construct {
   /** Lambda layer of `libactivitypub`. */
   readonly libActivityPub: lambda.ILayerVersion;
+  /** Lambda layer of `libmumble`. */
+  readonly libMumble: lambda.ILayerVersion;
 
   constructor(scope: Construct, id: string) {
     super(scope, id);
@@ -19,6 +21,12 @@ export class LambdaDependencies extends Construct {
       runtime: lambda.Runtime.PYTHON_3_8,
       compatibleArchitectures: [lambda.Architecture.ARM_64],
       entry: path.resolve('../lib/libactivitypub')
+    });
+    this.libMumble = new PythonLibraryLayer(this, 'LibMumble', {
+      description: 'Lambda layer for libmumble',
+      runtime: lambda.Runtime.PYTHON_3_8,
+      compatibleArchitectures: [lambda.Architecture.ARM_64],
+      entry: path.join('lambda', 'libmumble'),
     });
   }
 }
