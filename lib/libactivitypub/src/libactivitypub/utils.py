@@ -38,5 +38,5 @@ def parse_acct_uri(uri: str) -> Tuple[str, str]:
     """
     prefix = 'acct:'
     if not uri.startswith(prefix):
-        raise ValueError(f'"acct" URI must starts with "{prefix}": {uri}')
+        raise ValueError(f'"acct" URI must start with "{prefix}": {uri}')
     return parse_webfinger_id(uri[len(prefix):])
