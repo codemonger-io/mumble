@@ -54,6 +54,19 @@ export class MumbleApi extends Construct {
       timeout: Duration.seconds(5),
       // TODO: specify DOMAIN_NAME in production
     });
+    // - describes a given user (actor)
+    const describeUserLambda = new PythonFunction(this, 'DescribeUserLambda', {
+      description: 'Describes a given user',
+      runtime: lambda.Runtime.PYTHON_3_8,
+      architecture: lambda.Architecture.ARM_64,
+      entry: path.join('lambda', 'describe_user'),
+      index: 'index.py',
+      handler: 'lambda_handler',
+      layers: [libActivityPub, libMumble],
+      memorySize: 128,
+      timeout: Duration.seconds(10),
+      // TODO: specify DOMAIN_NAME in production
+    });
 
     // the API
     this.api = new RestApiWithSpec(this, `mumble-api-${deploymentStage}`, {
@@ -123,6 +136,108 @@ export class MumbleApi extends Construct {
         required: ['subject'],
       },
     });
+    // - Actor response
+    const actorModel = this.api.addModel('Actor', {
+      description: 'Actor response',
+      contentType: 'application/activity+json',
+      schema: {
+        schema: apigateway.JsonSchemaVersion.DRAFT4,
+        title: 'Actor',
+        description: 'Actor response',
+        type: apigateway.JsonSchemaType.OBJECT,
+        properties: {
+          '@context': {
+            description: 'JSON-LD context',
+            type: apigateway.JsonSchemaType.STRING,
+            example: 'https://www.w3.org/ns/activitystreams',
+          },
+          id: {
+            description: 'ID of the object',
+            type: apigateway.JsonSchemaType.STRING,
+            example: 'https://mumble.codemonger.io/users/kemoto',
+          },
+          type: {
+            description: 'Object type. Always "Person"',
+            type: apigateway.JsonSchemaType.STRING,
+            enum: ['Person'],
+            example: 'Person',
+          },
+          name: {
+            description: 'Preferred "nickname" or "display name" of the actor',
+            type: apigateway.JsonSchemaType.STRING,
+            example: 'Kikuo Emoto',
+          },
+          preferredUsername: {
+            description: 'Short username which may be used to refer to the actor, with no uniqueness guarantees',
+            type: apigateway.JsonSchemaType.STRING,
+            example: 'kemoto',
+          },
+          summary: {
+            description: 'Quick summary or bio by the user about themselves',
+            type: apigateway.JsonSchemaType.STRING,
+            example: 'The representative of codemonger',
+          },
+          url: {
+            description: 'Link to the actor\'s "profile web page", if not equal to the value of id',
+            type: apigateway.JsonSchemaType.STRING,
+            example: 'https://codemonger.io',
+          },
+          inbox: {
+            description: 'Inbox URI',
+            type: apigateway.JsonSchemaType.STRING,
+            example: 'https://mumble.codemonger.io/users/kemoto/inbox',
+          },
+          outbox: {
+            description: 'Outbox URI',
+            type: apigateway.JsonSchemaType.STRING,
+            example: 'https://mumble.codemonger.io/users/kemoto/outbox',
+          },
+          following: {
+            description: 'Following list URI',
+            type: apigateway.JsonSchemaType.STRING,
+            example: 'https://mumble.codemonger.io/users/kemoto/following',
+          },
+          followers: {
+            description: 'Follower list URI',
+            type: apigateway.JsonSchemaType.STRING,
+            example: 'https://mumble.codemonger.io/users/kemoto/followers',
+          },
+          publicKey: {
+            // required by Mastodon
+            description: 'Public key',
+            type: apigateway.JsonSchemaType.OBJECT,
+            properties: {
+              id: {
+                description: 'ID of the public key',
+                type: apigateway.JsonSchemaType.STRING,
+                example: 'https://mumble.codemonger.io/users/kemoto#main-key',
+              },
+              owner: {
+                description: 'Owner of the public key',
+                type: apigateway.JsonSchemaType.STRING,
+                example: 'https://mumble.codemonger.io/users/kemoto',
+              },
+              publicKeyPem: {
+                description: 'PEM representation of the public key',
+                type: apigateway.JsonSchemaType.STRING,
+                example: '-----BEGIN PUBLIC KEY-----\n...',
+              },
+            },
+            required: ['id', 'owner', 'publicKeyPem'],
+          },
+        },
+        required: [
+          '@context',
+          'followers',
+          'following',
+          'id',
+          'inbox',
+          'outbox',
+          'publicKey',
+          'type',
+        ],
+      },
+    });
 
     // /.well-known
     const well_known = this.api.root.addResource('.well-known');
@@ -187,6 +302,70 @@ export class MumbleApi extends Construct {
           {
             statusCode: '404',
             description: 'account is not found',
+          },
+          {
+            statusCode: '500',
+            description: 'internal server error',
+          },
+        ],
+      },
+    );
+    // /users
+    const users = this.api.root.addResource('users');
+    // /users/{user_id}
+    const user = users.addResource('{username}');
+    // - GET: returns the actor information
+    user.addMethod(
+      'GET',
+      new apigateway.LambdaIntegration(describeUserLambda, {
+        proxy: false,
+        passthroughBehavior: apigateway.PassthroughBehavior.NEVER,
+        requestTemplates: {
+          // X-Host-Header is given if the request comes from the CloudFront
+          // distribution (only in development). Otherwise, use Host.
+          // DO NOT rely on `apiDomainName` in production
+          'application/json': `{
+            "username": "$util.escapeJavaScript($util.urlDecode($input.params('username')))",
+            #if ($input.params('x-host-header') != '')
+            "apiDomainName": "$util.escapeJavaScript($util.urlDecode($input.params('x-host-header')))"
+            #else
+            "apiDomainName": "$context.domainName"
+            #end
+          }`,
+        },
+        integrationResponses: [
+          catchErrorsWith(404, 'NotFoundError'),
+          catchErrorsWith(400, 'BadRequestError'),
+          catchErrorsWith(500, 'BadConfigurationError'),
+          {
+            statusCode: '200',
+          },
+        ],
+      }),
+      {
+        operationName: 'describeUser',
+        requestParameterSchemas: {
+          'method.request.path.username': {
+            description: 'Username to be described',
+            required: true,
+            schema: {
+              type: 'string',
+            },
+            example: 'kemoto',
+          },
+        },
+        methodResponses: [
+          {
+            statusCode: '200',
+            description: 'successful operation',
+            responseModels: {
+              'application/activity+json': actorModel,
+              'application/ld+json': actorModel,
+            },
+          },
+          {
+            statusCode: '404',
+            description: 'user is not found',
           },
           {
             statusCode: '500',

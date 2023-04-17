@@ -17,7 +17,7 @@
             "schema": {
               "type": "string"
             },
-            "example": "acct%3Agargron%40mastodon.social",
+            "example": "acct%3Akemoto%40mumble.codemonger.io",
             "name": "resource",
             "in": "query"
           }
@@ -38,6 +38,59 @@
           },
           "404": {
             "description": "account is not found"
+          },
+          "500": {
+            "description": "internal server error"
+          }
+        }
+      }
+    },
+    "/users": {},
+    "/users/{username}": {
+      "parameters": [
+        {
+          "name": "username",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "parameters": [
+          {
+            "description": "Username to be described",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "kemoto",
+            "name": "username",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation",
+            "content": {
+              "application/activity+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MumbleApimumbleapidevelopmentActor82008CE0"
+                }
+              },
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MumbleApimumbleapidevelopmentActor82008CE0"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "user is not found"
+          },
+          "500": {
+            "description": "internal server error"
           }
         }
       }
@@ -50,7 +103,7 @@
         "properties": {
           "subject": {
             "description": "Subject URI",
-            "example": "acct:Gargron@mastodon.social",
+            "example": "acct:kemoto@mumble.codemonger.io",
             "type": "string"
           },
           "links": {
@@ -70,7 +123,7 @@
                 },
                 "href": {
                   "description": "URI of the linked object",
-                  "example": "https://mastodon.social/users/Gargron",
+                  "example": "https://mumble.codemonger.io/users/kemoto",
                   "type": "string"
                 }
               },
@@ -86,6 +139,107 @@
           "subject"
         ],
         "title": "WebFinger",
+        "type": "object"
+      },
+      "MumbleApimumbleapidevelopmentActor82008CE0": {
+        "description": "Actor response",
+        "properties": {
+          "@context": {
+            "description": "JSON-LD context",
+            "example": "https://www.w3.org/ns/activitystreams",
+            "type": "string"
+          },
+          "id": {
+            "description": "ID of the object",
+            "example": "https://mumble.codemonger.io/users/kemoto",
+            "type": "string"
+          },
+          "type": {
+            "description": "Object type. Always \"Person\"",
+            "enum": [
+              "Person"
+            ],
+            "example": "Person",
+            "type": "string"
+          },
+          "name": {
+            "description": "Preferred \"nickname\" or \"display name\" of the actor",
+            "example": "Kikuo Emoto",
+            "type": "string"
+          },
+          "preferredUsername": {
+            "description": "Short username which may be used to refer to the actor, with no uniqueness guarantees",
+            "example": "kemoto",
+            "type": "string"
+          },
+          "summary": {
+            "description": "Quick summary or bio by the user about themselves",
+            "example": "The representative of codemonger",
+            "type": "string"
+          },
+          "url": {
+            "description": "Link to the actor's \"profile web page\", if not equal to the value of id",
+            "example": "https://codemonger.io",
+            "type": "string"
+          },
+          "inbox": {
+            "description": "Inbox URI",
+            "example": "https://mumble.codemonger.io/users/kemoto/inbox",
+            "type": "string"
+          },
+          "outbox": {
+            "description": "Outbox URI",
+            "example": "https://mumble.codemonger.io/users/kemoto/outbox",
+            "type": "string"
+          },
+          "following": {
+            "description": "Following list URI",
+            "example": "https://mumble.codemonger.io/users/kemoto/following",
+            "type": "string"
+          },
+          "followers": {
+            "description": "Follower list URI",
+            "example": "https://mumble.codemonger.io/users/kemoto/followers",
+            "type": "string"
+          },
+          "publicKey": {
+            "description": "Public key",
+            "properties": {
+              "id": {
+                "description": "ID of the public key",
+                "example": "https://mumble.codemonger.io/users/kemoto#main-key",
+                "type": "string"
+              },
+              "owner": {
+                "description": "Owner of the public key",
+                "example": "https://mumble.codemonger.io/users/kemoto",
+                "type": "string"
+              },
+              "publicKeyPem": {
+                "description": "PEM representation of the public key",
+                "example": "-----BEGIN PUBLIC KEY-----\n...",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "owner",
+              "publicKeyPem"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "@context",
+          "followers",
+          "following",
+          "id",
+          "inbox",
+          "outbox",
+          "publicKey",
+          "type"
+        ],
+        "title": "Actor",
         "type": "object"
       }
     },
