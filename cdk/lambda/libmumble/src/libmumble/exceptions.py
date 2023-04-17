@@ -32,6 +32,11 @@ class BadConfigurationError(MumbleBaseException):
     """
 
 
+class CorruptedDataError(MumbleBaseException):
+    """Raised if the data is corrupted.
+    """
+
+
 class BadRequestError(MumbleBaseException):
     """Raised if the request is invalid.
     """
@@ -44,4 +49,9 @@ class UnexpectedDomainError(MumbleBaseException):
 
 class NotFoundError(MumbleBaseException):
     """Raised if the account is not found.
+    """
+
+
+class TooManyAccessError(MumbleBaseException):
+    """Raised if there are too many requests.
     """

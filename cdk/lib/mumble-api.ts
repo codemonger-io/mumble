@@ -13,12 +13,15 @@ import { RestApiWithSpec } from 'cdk-rest-api-with-spec';
 
 import type { DeploymentStage } from './deployment-stage';
 import type { LambdaDependencies } from './lambda-dependencies';
+import type { UserTable } from './user-table';
 
 export interface Props {
   /** Deployment stage. */
   readonly deploymentStage: DeploymentStage;
   /** Lambda dependencies. */
   readonly lambdaDependencies: LambdaDependencies;
+  /** User table. */
+  readonly userTable: UserTable;
 }
 
 /**
@@ -37,7 +40,7 @@ export class MumbleApi extends Construct {
   constructor(scope: Construct, id: string, props: Props) {
     super(scope, id);
 
-    const { deploymentStage, lambdaDependencies } = props;
+    const { deploymentStage, lambdaDependencies, userTable } = props;
     const { libActivityPub, libMumble } = lambdaDependencies;
 
     // Lambda functions
@@ -63,9 +66,12 @@ export class MumbleApi extends Construct {
       index: 'index.py',
       handler: 'lambda_handler',
       layers: [libActivityPub, libMumble],
+      environment: {
+        USER_TABLE_NAME: userTable.userTable.tableName,
+        // TODO: specify DOMAIN_NAME in production
+      },
       memorySize: 128,
       timeout: Duration.seconds(10),
-      // TODO: specify DOMAIN_NAME in production
     });
 
     // the API
@@ -276,6 +282,7 @@ export class MumbleApi extends Construct {
       }),
       {
         operationName: 'webFinger',
+        description: 'Returns the information on a given user',
         requestParameterSchemas: {
           'method.request.querystring.resource': {
             description: 'Account to be WebFingered',
@@ -321,8 +328,9 @@ export class MumbleApi extends Construct {
         proxy: false,
         passthroughBehavior: apigateway.PassthroughBehavior.NEVER,
         requestTemplates: {
-          // X-Host-Header is given if the request comes from the CloudFront
-          // distribution (only in development). Otherwise, use Host.
+          // `apiDomainName`: X-Host-Header is given if the request comes from
+          // the CloudFront distribution (only in development). Otherwise, use
+          // Host.
           // DO NOT rely on `apiDomainName` in production
           'application/json': `{
             "username": "$util.escapeJavaScript($util.urlDecode($input.params('username')))",
@@ -335,7 +343,7 @@ export class MumbleApi extends Construct {
         },
         integrationResponses: [
           catchErrorsWith(404, 'NotFoundError'),
-          catchErrorsWith(400, 'BadRequestError'),
+          catchErrorsWith(429, 'TooManyAccessError'),
           catchErrorsWith(500, 'BadConfigurationError'),
           {
             statusCode: '200',
@@ -344,6 +352,7 @@ export class MumbleApi extends Construct {
       }),
       {
         operationName: 'describeUser',
+        description: 'Returns the actor object of a given user',
         requestParameterSchemas: {
           'method.request.path.username': {
             description: 'Username to be described',
@@ -368,6 +377,10 @@ export class MumbleApi extends Construct {
             description: 'user is not found',
           },
           {
+            statusCode: '429',
+            description: 'there are too many requests',
+          },
+          {
             statusCode: '500',
             description: 'internal server error',
           },
@@ -377,15 +390,19 @@ export class MumbleApi extends Construct {
 
     // configures the CloudFront distribution
     // - cache policy
+    const forwardedHeaders = ['Signature']; // also cached
+    if (deploymentStage === 'development') {
+      // X-Host-Header must be forwarded in development
+      forwardedHeaders.push('X-Host-Header');
+    }
     const cachePolicy = new cloudfront.CachePolicy(
       this,
       'MumbleApiCachePolicy',
       {
         comment: `Mumble API cache policy (${deploymentStage})`,
         // X-Host-Header must be forwarded in development
-        headerBehavior: deploymentStage === 'development'
-          ? cloudfront.CacheHeaderBehavior.allowList('X-Host-Header')
-          : undefined,
+        headerBehavior:
+          cloudfront.CacheHeaderBehavior.allowList(...forwardedHeaders),
         // TODO: should we narrow query strings?
         queryStringBehavior: cloudfront.CacheQueryStringBehavior.all(),
         // TODO: set longer duration for production
