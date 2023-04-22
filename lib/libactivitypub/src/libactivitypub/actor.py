@@ -5,7 +5,7 @@
 
 from functools import cached_property
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, TypedDict
 import requests
 from .activity_stream import (
     DEFAULT_REQUEST_TIMEOUT,
@@ -19,6 +19,34 @@ from .utils import parse_webfinger_id
 
 LOGGER = logging.getLogger('libactivitypub.actor')
 LOGGER.setLevel(logging.DEBUG)
+
+
+class PublicKey(TypedDict):
+    """Public key.
+    """
+    id: str
+    """ID of the public key."""
+    owner: str
+    """Owner of the public key."""
+    publicKeyPem: str
+    """PEM representation of the public key."""
+
+
+def dict_as_public_key(d: Dict[str, Any]) -> PublicKey: # pylint: disable=invalid-name
+    """Casts a given ``dict`` as a ``PublicKey``.
+
+    :raises TypeError: if ``d`` does not conform to ``PublicKey``.
+    """
+    if not isinstance(d.get('id'), str):
+        raise TypeError(f'id must be str but {type(d.get("id"))}')
+    if not isinstance(d.get('owner'), str):
+        raise TypeError(f'owner must be str but {type(d.get("owner"))}')
+    if not isinstance(d.get('publicKeyPem'), str):
+        raise TypeError(
+            f'publicKeyPem must be str but {type(d.get("publicKeyPem"))}',
+        )
+    # unfortunately, the above checks cannot convince mypy that d is PublicKey
+    return d # type: ignore
 
 
 class WebFinger:
@@ -113,3 +141,17 @@ class Actor(DictObject):
         if 'outbox' not in self._underlying:
             raise AttributeError('no outbox is provided')
         return Outbox(self._underlying['outbox'])
+
+    @property
+    def public_key(self) -> PublicKey:
+        """Public key of the actor.
+
+        Mastodon compliant actor must have a public key.
+
+        :raises AttributeError: if no public key is provided.
+
+        :raises TypeError: if the provided public key is invalid.
+        """
+        if 'publicKey' not in self._underlying:
+            raise AttributeError('no public key is provided')
+        return dict_as_public_key(self._underlying['publicKey'])
