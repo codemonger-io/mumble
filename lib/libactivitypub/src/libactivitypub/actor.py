@@ -115,8 +115,20 @@ class Actor(DictObject):
     """Actor on ActivityPub networks.
     """
     @staticmethod
-    def resolve_webfinger_id(account: str):
-        """Resolves an actor associated with a given WebFinger ID; e.g.,
+    def resolve_uri(actor_uri: str) -> 'Actor':
+        """Resolves the actor at a given URI (ID).
+
+        :raises requests.HTTPError: if an HTTP request fails.
+
+        :raises ValueError: if the resolved object is not a valid actor.
+        """
+        LOGGER.debug('requesting actor: %s', actor_uri)
+        underlying = activity_stream_get(actor_uri)
+        return Actor(underlying)
+
+    @staticmethod
+    def resolve_webfinger_id(account: str) -> 'Actor':
+        """Resolves the actor associated with a given WebFinger ID; e.g.,
         Mastodon account ID.
 
         :raises ValueError: if ``account`` is not a valid WebFinger ID,
