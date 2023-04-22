@@ -44,6 +44,10 @@ class Activity(DictObject):
             return Announce.parse_object(obj)
         if obj_type == 'Create':
             return Create.parse_object(obj)
+        if obj_type == 'Follow':
+            return Follow.parse_object(obj)
+        if obj_type == 'Undo':
+            return Undo.parse_object(obj)
         if obj_type is not None:
             raise ValueError(f'unsupported activity type: {obj_type}')
         raise ValueError('invalid object: type is missing')
@@ -55,6 +59,12 @@ class Activity(DictObject):
     @property
     def type(self) -> str:
         return self._underlying['type']
+
+    @property
+    def actor_id(self) -> str:
+        """ID of the actor of this activity.
+        """
+        return Reference(self._underlying['actor']).id
 
     @abstractmethod
     def resolve_objects(self, object_store: ObjectStore):
@@ -196,6 +206,84 @@ class Create(MessageActivity):
         super().resolve_objects(object_store)
         if 'object' in self._underlying:
             resolve_object(self._underlying['object'], object_store)
+
+
+class Follow(Activity):
+    """Wraps a "Follow" activity.
+    """
+    def __init__(self, underlying: Dict[str, Any]):
+        """Wraps a given "Follow" activity object.
+
+        :raises ValueError: if ``underlying`` does not represent an activity,
+        or if ``underlying`` does not have ``object``.
+        """
+        super().__init__(underlying)
+        if 'object' not in underlying:
+            raise ValueError('invalid follow activity: object is missing')
+
+    @staticmethod
+    def parse_object(obj: Dict[str, Any]) -> 'Follow':
+        """Parses a given "Follow" activity object.
+
+        :raises ValueError: if ``obj`` does not represent a "Follow" activity
+        object.
+        """
+        if obj.get('type') != 'Follow':
+            raise ValueError(f'type must be "Follow": {obj.get("type")}')
+        return Follow(obj)
+
+    def resolve_objects(self, object_store: ObjectStore):
+        """Resolves the referenced object.
+
+        Resolves ``object``.
+        """
+        super().resolve_objects(object_store)
+        resolve_object(self._underlying['object'], object_store)
+
+    @property
+    def followed_id(self):
+        """ID of the followed object.
+        """
+        return Reference(self._underlying['object']).id
+
+
+class Undo(Activity):
+    """Wraps an "Undo" activity.
+    """
+    def __init__(self, underlying: Dict[str, Any]):
+        """Wraps a given "Undo" activity object.
+
+        :raises ValueError: if ``underlying`` does not represent an activity,
+        or if ``underlying`` does not have ``object``.
+        """
+        super().__init__(underlying)
+        if 'object' not in underlying:
+            raise ValueError('invalid undo activity: object is missing')
+
+    @staticmethod
+    def parse_object(obj: Dict[str, Any]) -> 'Undo':
+        """Parses a given "Undo" activity object.
+
+        :raises ValueError: if ``obj`` does not represent an "Undo" activity
+        object.
+        """
+        if obj.get('type') != 'Undo':
+            raise ValueError(f'type must be "Undo": {obj.get("type")}')
+        return Undo(obj)
+
+    def resolve_objects(self, object_store: ObjectStore):
+        """Resolves the referenced object.
+
+        Resolves ``object``.
+        """
+        super().resolve_objects(object_store)
+        resolve_object(self._underlying['object'], object_store)
+
+    @property
+    def undone_id(self):
+        """ID of the undone object.
+        """
+        return Reference(self._underlying['object']).id
 
 
 def resolve_object(
