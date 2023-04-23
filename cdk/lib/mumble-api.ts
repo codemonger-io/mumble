@@ -9,6 +9,7 @@ import {
 import { Construct } from 'constructs';
 import { PythonFunction } from '@aws-cdk/aws-lambda-python-alpha';
 
+import { BundledCode, FunctionProps } from 'cdk-cloudfront-function-bundle';
 import { RestApiWithSpec } from 'cdk-rest-api-with-spec';
 
 import type { DeploymentStage } from './deployment-stage';
@@ -335,7 +336,7 @@ export class MumbleApi extends Construct {
           'application/json': `{
             "username": "$util.escapeJavaScript($util.urlDecode($input.params('username')))",
             #if ($input.params('x-host-header') != '')
-            "apiDomainName": "$util.escapeJavaScript($util.urlDecode($input.params('x-host-header')))"
+            "apiDomainName": "$util.escapeJavaScript($input.params('x-host-header'))"
             #else
             "apiDomainName": "$context.domainName"
             #end
@@ -390,7 +391,11 @@ export class MumbleApi extends Construct {
 
     // configures the CloudFront distribution
     // - cache policy
-    const forwardedHeaders = ['Signature']; // also cached
+    const forwardedHeaders = [
+      'X-Signature-Date', // Date should not be cached. this header exists only if the request has a Signature
+      'Digest',
+      'Signature',
+    ]; // these headers are also cached
     if (deploymentStage === 'development') {
       // X-Host-Header must be forwarded in development
       forwardedHeaders.push('X-Host-Header');
@@ -410,24 +415,19 @@ export class MumbleApi extends Construct {
       },
     );
     // - CloudFront functions (provided only in development)
-    const functionAssociations: cloudfront.FunctionAssociation[] = [];
+    const requestHandlerFunctions: FunctionProps[] = [
+      // forwards Date header to the origin as X-Signature-Date
+      {
+        filePath: path.join('cloudfront-fn', 'forward-date-header.js'),
+        handler: 'forwardDateHeader',
+      },
+    ];
     if (deploymentStage === 'development') {
       // forwards Host header to the origin as X-Host-Header
-      functionAssociations.push(
-        {
-          eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
-          function: new cloudfront.Function(
-            this,
-            'ForwardHostHeaderCF',
-            {
-              comment: 'Forwards the Host header to the origin as X-Host-Header.',
-              code: cloudfront.FunctionCode.fromFile({
-                filePath: path.join('cloudfront-fn', 'forward-host-header.js'),
-              }),
-            },
-          ),
-        },
-      );
+      requestHandlerFunctions.push({
+        filePath: path.join('cloudfront-fn', 'forward-host-header.js'),
+        handler: 'forwardHostHeader',
+      });
     }
     // - distribution
     this.distribution = new cloudfront.Distribution(
@@ -440,7 +440,19 @@ export class MumbleApi extends Construct {
           cachePolicy,
           allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.HTTPS_ONLY,
-          functionAssociations,
+          functionAssociations: [
+            {
+              eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+              function: new cloudfront.Function(
+                this,
+                'ProcessRequestCF',
+                {
+                  comment: 'Processes requests',
+                  code: new BundledCode(...requestHandlerFunctions),
+                },
+              ),
+            },
+          ],
         },
         enableLogging: true,
         // TODO: set domain name and certificate for production

@@ -1,18 +1,7 @@
 // this declaration exists only for unit tests.
+import type { Event, Request } from './types';
 
-type Event = {
-  request: Request;
-};
-
-type Request = {
-  headers: { [header: string]: HeaderValue };
-};
-
-type HeaderValue = {
-  value: string;
-};
-
-function handlerImpl(event: Event): Request;
+function forwardHostHeader(event: Event): Request;
 
 // declaration of the __get__ function injected by babel-plugin-rewire.
-export function __get__(name: 'handlerImpl'): handlerImpl;
+export function __get__(name: 'forwardHostHeader'): forwardHostHeader;

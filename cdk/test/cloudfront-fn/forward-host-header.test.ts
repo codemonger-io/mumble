@@ -1,10 +1,10 @@
 // thanks to babel-plugin-rewire all *.js modules expose internal functions
 // through the __get__ function.
 import { __get__ } from '../../cloudfront-fn/forward-host-header.js';
-const handlerImpl = __get__('handlerImpl');
+const forwardHostHeader = __get__('forwardHostHeader');
 
 describe('forward-host-header', () => {
-  describe('handlerImpl', () => {
+  describe('forwardHostHeader', () => {
     it('should copy host to x-host-header', () => {
       const event = {
         request: {
@@ -15,7 +15,7 @@ describe('forward-host-header', () => {
           },
         },
       };
-      expect(handlerImpl(event)).toEqual({
+      expect(forwardHostHeader(event)).toEqual({
         headers: {
           host: {
             value: 'mumble.codemonger.io',
@@ -37,7 +37,7 @@ describe('forward-host-header', () => {
           },
         },
       };
-      expect(handlerImpl(event)).toEqual({
+      expect(forwardHostHeader(event)).toEqual({
         headers: {
           accept: {
             value: 'application/json',
@@ -59,7 +59,7 @@ describe('forward-host-header', () => {
           },
         },
       };
-      expect(handlerImpl(event)).toEqual({
+      expect(forwardHostHeader(event)).toEqual({
         headers: {
           host: {
             value: 'mumble.codemonger.io',
