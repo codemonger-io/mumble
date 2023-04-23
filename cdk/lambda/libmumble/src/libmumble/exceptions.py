@@ -55,3 +55,8 @@ class NotFoundError(MumbleBaseException):
 class TooManyAccessError(MumbleBaseException):
     """Raised if there are too many requests.
     """
+
+
+class UnauthorizedError(MumbleBaseException):
+    """Raised if a credential is invalid.
+    """
