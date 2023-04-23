@@ -14,6 +14,7 @@ import { RestApiWithSpec } from 'cdk-rest-api-with-spec';
 
 import type { DeploymentStage } from './deployment-stage';
 import type { LambdaDependencies } from './lambda-dependencies';
+import type { ObjectStore } from './object-store';
 import type { UserTable } from './user-table';
 
 export interface Props {
@@ -23,6 +24,8 @@ export interface Props {
   readonly lambdaDependencies: LambdaDependencies;
   /** User table. */
   readonly userTable: UserTable;
+  /** Object store. */
+  readonly objectStore: ObjectStore;
 }
 
 /**
@@ -41,8 +44,13 @@ export class MumbleApi extends Construct {
   constructor(scope: Construct, id: string, props: Props) {
     super(scope, id);
 
-    const { deploymentStage, lambdaDependencies, userTable } = props;
-    const { libActivityPub, libMumble } = lambdaDependencies;
+    const {
+      deploymentStage,
+      lambdaDependencies,
+      objectStore,
+      userTable,
+    } = props;
+    const { libActivityPub, libCommons, libMumble } = lambdaDependencies;
 
     // Lambda functions
     // - responds to a WebFinger request
@@ -74,6 +82,30 @@ export class MumbleApi extends Construct {
       memorySize: 128,
       timeout: Duration.seconds(10),
     });
+    userTable.userTable.grantReadData(describeUserLambda);
+    // - receives an activity posted to the inbox of a given user
+    const receiveInboundActivityLambda = new PythonFunction(
+      this,
+      'ReceiveInboundActivityLambda',
+      {
+        description: 'Receives an activity posted to the inbox of a given user',
+        runtime: lambda.Runtime.PYTHON_3_8,
+        architecture: lambda.Architecture.ARM_64,
+        entry: path.join('lambda', 'receive_inbound_activity'),
+        index: 'index.py',
+        handler: 'lambda_handler',
+        layers: [libActivityPub, libCommons, libMumble],
+        environment: {
+          USER_TABLE_NAME: userTable.userTable.tableName,
+          OBJECTS_BUCKET_NAME: objectStore.objectsBucket.bucketName,
+          // TODO: specify DOMAIN_NAME in production
+        },
+        memorySize: 256,
+        timeout: Duration.seconds(20),
+      },
+    );
+    userTable.userTable.grantReadData(receiveInboundActivityLambda);
+    objectStore.grantPutIntoInbox(receiveInboundActivityLambda);
 
     // the API
     this.api = new RestApiWithSpec(this, `mumble-api-${deploymentStage}`, {
@@ -245,6 +277,83 @@ export class MumbleApi extends Construct {
         ],
       },
     });
+    // - Object
+    const objectModel = this.api.addModel('Object', {
+      description: 'Object',
+      contentType: 'application/json',
+      schema: {
+        schema: apigateway.JsonSchemaVersion.DRAFT4,
+        title: 'object',
+        description: 'Object',
+        type: apigateway.JsonSchemaType.OBJECT,
+        properties: {
+          id: {
+            description: 'ID of the object',
+            type: apigateway.JsonSchemaType.STRING,
+            example: 'https://mumble.codemonger.io/users/kemoto/posts/abcdefghijklmn',
+          },
+          type: {
+            description: 'Type of the object',
+            type: apigateway.JsonSchemaType.STRING,
+            example: 'Note',
+          },
+        },
+      },
+    });
+    // - Activity
+    const activityModel = this.api.addModel('Activity', {
+      description: 'Activity',
+      contentType: 'application/json',
+      schema: {
+        schema: apigateway.JsonSchemaVersion.DRAFT4,
+        title: 'activity',
+        description: 'Activity',
+        type: apigateway.JsonSchemaType.OBJECT,
+        properties: {
+          id: {
+            description: 'ID of the activity',
+            type: apigateway.JsonSchemaType.STRING,
+            example: 'https://mumble.codemonger.io/users/kemoto/activities/abcdefghijklmn',
+          },
+          type: {
+            description: 'Type of the activity',
+            type: apigateway.JsonSchemaType.STRING,
+            example: 'Create',
+          },
+          actor: {
+            description: 'Actor of the activity',
+            type: apigateway.JsonSchemaType.STRING,
+            example: 'https://mumble.codemonger.io/users/kemoto',
+          },
+          object: {
+            description: 'Object of the activity',
+            oneOf: [
+              {
+                description: 'ID of the object',
+                type: apigateway.JsonSchemaType.STRING,
+                example: 'https://mumble.codemonger.io/users/kemoto/posts/abcdefghijklmn',
+              },
+              {
+                description: 'Object',
+                modelRef: objectModel,
+              },
+            ],
+          },
+        },
+        required: ['type', 'actor'],
+      },
+    });
+
+    // request validator
+    const requestValidator = new apigateway.RequestValidator(
+      this,
+      'RequestValidator',
+      {
+        restApi: this.api,
+        validateRequestBody: true,
+        validateRequestParameters: true,
+      },
+    );
 
     // /.well-known
     const well_known = this.api.root.addResource('.well-known');
@@ -295,6 +404,7 @@ export class MumbleApi extends Construct {
           },
           // TODO: add rel
         },
+        requestValidator,
         methodResponses: [
           {
             statusCode: '200',
@@ -364,6 +474,7 @@ export class MumbleApi extends Construct {
             example: 'kemoto',
           },
         },
+        requestValidator,
         methodResponses: [
           {
             statusCode: '200',
@@ -380,6 +491,91 @@ export class MumbleApi extends Construct {
           {
             statusCode: '429',
             description: 'there are too many requests',
+          },
+          {
+            statusCode: '500',
+            description: 'internal server error',
+          },
+        ],
+      },
+    );
+    // /users/{username}/inbox
+    const inbox = user.addResource('inbox');
+    // - POST: posts an activity to the inbox of a given user
+    inbox.addMethod(
+      'POST',
+      new apigateway.LambdaIntegration(receiveInboundActivityLambda, {
+        proxy: false,
+        passthroughBehavior: apigateway.PassthroughBehavior.NEVER,
+        requestTemplates: {
+          // `apiDomainName`: X-Host-Header is given if the request comes from
+          // the CloudFront distribution (only in development). Otherwise, use
+          // Host.
+          // DO NOT rely on `apiDomainName` in production
+          'application/activity+json': `{
+            "username": "$util.escapeJavaScript($util.urlDecode($input.params('username')))",
+            "signature": "$util.escapeJavaScript($input.params('signature'))",
+            "date": "$util.escapeJavaScript($input.params('x-signature-date'))",
+            "digest": "$util.escapeJavaScript($input.params('digest'))",
+            "contentType": "$util.escapeJavaScript($input.params('content-type'))",
+            "body": "$util.escapeJavaScript($input.body).replaceAll("\\'","'")",
+            #if ($input.params('x-host-header') != '')
+            "apiDomainName": "$util.escapeJavaScript($input.params('x-host-header'))"
+            #else
+            "apiDomainName": "$context.domainName"
+            #end
+          }`,
+          // TODO: support application/ld+json
+        },
+        integrationResponses: [
+          catchErrorsWith(400, 'BadRequestError'),
+          catchErrorsWith(401, 'UnauthorizedError'),
+          catchErrorsWith(403, 'ForbiddenError'),
+          catchErrorsWith(404, 'NotFoundError'),
+          catchErrorsWith(500, 'BadConfigurationError'),
+          {
+            statusCode: '200',
+          },
+        ],
+      }),
+      {
+        operationName: 'postActivity',
+        description: 'Posts an activity to the inbox of a given user',
+        requestParameterSchemas: {
+          'method.request.path.username': {
+            description: 'Username to receive a posted activity',
+            required: true,
+            schema: {
+              type: 'string',
+            },
+            example: 'kemoto',
+          },
+        },
+        requestModels: {
+          'application/activity+json': activityModel,
+          'application/ld+json': activityModel,
+        },
+        requestValidator,
+        methodResponses: [
+          {
+            statusCode: '200',
+            description: 'successful operation',
+          },
+          {
+            statusCode: '400',
+            description: 'request is malformed',
+          },
+          {
+            statusCode: '401',
+            description: 'request has no valid signature',
+          },
+          {
+            statusCode: '403',
+            description: 'requestor is not allowed to post',
+          },
+          {
+            statusCode: '404',
+            description: 'user is not found',
           },
           {
             statusCode: '500',

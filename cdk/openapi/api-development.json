@@ -10,6 +10,7 @@
     "/.well-known": {},
     "/.well-known/webfinger": {
       "get": {
+        "description": "Returns the information on a given user",
         "parameters": [
           {
             "description": "Account to be WebFingered",
@@ -58,6 +59,7 @@
         }
       ],
       "get": {
+        "description": "Returns the actor object of a given user",
         "parameters": [
           {
             "description": "Username to be described",
@@ -85,6 +87,60 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "user is not found"
+          },
+          "429": {
+            "description": "there are too many requests"
+          },
+          "500": {
+            "description": "internal server error"
+          }
+        }
+      }
+    },
+    "/users/{username}/inbox": {
+      "post": {
+        "description": "Posts an activity to the inbox of a given user",
+        "requestBody": {
+          "content": {
+            "application/activity+json": {
+              "schema": {
+                "$ref": "#/components/schemas/MumbleApimumbleapidevelopmentActivity5D2B536A"
+              }
+            },
+            "application/ld+json": {
+              "schema": {
+                "$ref": "#/components/schemas/MumbleApimumbleapidevelopmentActivity5D2B536A"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "description": "Username to receive a posted activity",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "kemoto",
+            "name": "username",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation"
+          },
+          "400": {
+            "description": "request is malformed"
+          },
+          "401": {
+            "description": "request has no valid signature"
+          },
+          "403": {
+            "description": "requestor is not allowed to post"
           },
           "404": {
             "description": "user is not found"
@@ -240,6 +296,62 @@
           "type"
         ],
         "title": "Actor",
+        "type": "object"
+      },
+      "MumbleApimumbleapidevelopmentObject9AEA00B2": {
+        "description": "Object",
+        "properties": {
+          "id": {
+            "description": "ID of the object",
+            "example": "https://mumble.codemonger.io/users/kemoto/posts/abcdefghijklmn",
+            "type": "string"
+          },
+          "type": {
+            "description": "Type of the object",
+            "example": "Note",
+            "type": "string"
+          }
+        },
+        "title": "object",
+        "type": "object"
+      },
+      "MumbleApimumbleapidevelopmentActivity5D2B536A": {
+        "description": "Activity",
+        "properties": {
+          "id": {
+            "description": "ID of the activity",
+            "example": "https://mumble.codemonger.io/users/kemoto/activities/abcdefghijklmn",
+            "type": "string"
+          },
+          "type": {
+            "description": "Type of the activity",
+            "example": "Create",
+            "type": "string"
+          },
+          "actor": {
+            "description": "Actor of the activity",
+            "example": "https://mumble.codemonger.io/users/kemoto",
+            "type": "string"
+          },
+          "object": {
+            "description": "Object of the activity",
+            "oneOf": [
+              {
+                "description": "ID of the object",
+                "example": "https://mumble.codemonger.io/users/kemoto/posts/abcdefghijklmn",
+                "type": "string"
+              },
+              {
+                "$ref": "#/components/schemas/MumbleApimumbleapidevelopmentObject9AEA00B2"
+              }
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "actor"
+        ],
+        "title": "activity",
         "type": "object"
       }
     },
