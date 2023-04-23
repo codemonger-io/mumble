@@ -4,7 +4,6 @@ import {
   RemovalPolicy,
   Stack,
   StackProps,
-  aws_sqs as sqs,
 } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 
@@ -25,20 +24,6 @@ export class CdkStack extends Stack {
 
     const { deploymentStage } = props;
 
-    // common dead-letter queue
-    const deadLetterQueue = new sqs.Queue(
-      this,
-      'DeadLetterQueue',
-      {
-        encryption: sqs.QueueEncryption.SQS_MANAGED,
-        deliveryDelay: Duration.seconds(0),
-        receiveMessageWaitTime: Duration.seconds(0),
-        retentionPeriod: Duration.days(7),
-        visibilityTimeout: Duration.seconds(60),
-        removalPolicy: RemovalPolicy.RETAIN,
-      },
-    );
-
     const lambdaDependencies = new LambdaDependencies(
       this,
       'LambdaDependencies',
@@ -46,9 +31,7 @@ export class CdkStack extends Stack {
     const userTable = new UserTable(this, 'UserTable', {
       deploymentStage,
     });
-    const objectStore = new ObjectStore(this, 'ObjectStore', {
-      deadLetterQueue,
-    });
+    const objectStore = new ObjectStore(this, 'ObjectStore');
     const mumbleApi = new MumbleApi(this, 'MumbleApi', {
       deploymentStage,
       lambdaDependencies,
