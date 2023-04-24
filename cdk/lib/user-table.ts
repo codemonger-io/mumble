@@ -46,12 +46,27 @@ export class UserTable extends Construct {
       //     - sk: "reserved"
       //
       //    non-key attributes
+      //     - createdAt: "<yyyy-mm-ddTHH:MM:ss.SSSSSSZ>"
+      //     - updatedAt: "<yyyy-mm-ddTHH:MM:ss.SSSSSSZ>"
       //     - name
       //     - preferredUsername
       //     - summary
       //     - url
       //     - publicKeyPem
       //     - privateKeyPath
+      //     - followerCount
+      //     - followingCount
+      //
+      // 2. follower of the user associated with <username>
+      //     - pk: "followers:<username>"
+      //     - sk: "<follower-id>"
+      //
+      //    non-key attributes (TBC)
+      //     - createdAt: "<yyyy-mm-ddTHH:MM:ss.SSSSSSZ>"
+      //     - updatedAt: "<yyyy-mm-ddTHH:MM:ss.SSSSSSZ>"
+      //     - followerId: "<follower-id>"
+      //     - followActivityId: "<follow-activity-id>"
+      //     - sharedInboxId: "<shared-inbox-id>"
       partitionKey: {
         name: 'pk',
         type: dynamodb.AttributeType.STRING,
