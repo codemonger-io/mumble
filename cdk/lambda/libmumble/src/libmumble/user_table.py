@@ -5,9 +5,14 @@
 
 from functools import cached_property
 import logging
-from typing import Any, Dict, Optional, TypedDict
+import re
+from typing import Any, Dict, Optional
+from urllib.parse import unquote, urlparse
+from boto3.dynamodb.conditions import Attr
+from libactivitypub.activity import Follow
 from libactivitypub.actor import PublicKey
 from .exceptions import CorruptedDataError, TooManyAccessError
+from .utils import current_yyyymmdd_hhmmss_ssssss
 
 
 LOGGER = logging.getLogger('libmumble.user_table')
@@ -127,18 +132,13 @@ class User: # pylint: disable=too-many-instance-attributes
         }
 
 
-class UserTableKey(TypedDict):
-    """Primary key of the user table.
-    """
-    pk: str
-    sk: str
-
-
 class UserTable:
     """User table.
     """
-    PK_PREFIX = 'user:'
-    """Prefix of a partition key."""
+    USER_PK_PREFIX = 'user:'
+    """Prefix of a partition key to query a user."""
+    FOLLOWER_PK_PREFIX = 'follower:'
+    """Prefix of a partition key to query followers."""
 
     def __init__(self, table: Any):
         """Wraps a given DynamoDB table that stores user information.
@@ -162,15 +162,14 @@ class UserTable:
         :raises TooManyAccessError: if access to the DynamoDB table exceeds the
         limit.
         """
-        exceptions = self._table.meta.client.exceptions
         try:
-            key = UserTable.make_primary_key(username)
+            key = UserTable.make_user_key(username)
             res = self._table.get_item(Key=key)
-        except exceptions.ProvisionedThroughputExceededException as exc:
+        except self.exceptions.ProvisionedThroughputExceededException as exc:
             raise TooManyAccessError(
                 'exceeded provisioned table throughput',
             ) from exc
-        except exceptions.RequestLimitExceeded as exc:
+        except self.exceptions.RequestLimitExceeded as exc:
             raise TooManyAccessError('exceeded API access limit') from exc
         if 'Item' not in res:
             return None
@@ -181,13 +180,83 @@ class UserTable:
                 f'invalid user data: "{username}"',
             ) from exc
 
+    def add_user_follower(self, username: str, follow: Follow):
+        """Adds a follower of a given user.
+
+        :param Follow follow: "Follow" activity.
+
+        :raises ValueError: if the object of ``follow`` is not the specified
+        user.
+
+        :raises TooManyAccessError: if access to the DynamoDB table exceeds
+        the limit.
+        """
+        if get_username_from_user_id(follow.followed_id) != username:
+            raise ValueError(
+                f'follow request in wrong inbox: {follow.followed_id},'
+                f' inbox={username}',
+            )
+        item = UserTable.make_follower_key(username, follow.actor_id)
+        item.update({
+            'createdAt': current_yyyymmdd_hhmmss_ssssss(),
+            'updatedAt': current_yyyymmdd_hhmmss_ssssss(),
+            'followerId': follow.actor_id,
+            'followActivityId': follow.id,
+            # TODO: sharedInboxId?
+        })
+        try:
+            LOGGER.debug(
+                'putting follower: username=%s, follower=%s',
+                username,
+                follow.actor_id,
+            )
+            self._table.put_item(
+                Item=item,
+                ConditionExpression=Attr('pk').not_exists(),
+            )
+            # increments the number of followers
+            LOGGER.debug('incrementing follower count')
+            res = self._table.update_item(
+                Key=UserTable.make_user_key(username),
+                AttributeUpdates={
+                    'followerCount': {
+                        'Value': 1,
+                        'Action': 'ADD',
+                    },
+                },
+                ReturnValues='UPDATED_NEW',
+            )
+            LOGGER.debug(
+                'new follower count: %d',
+                res['Attributes'].get('followerCount'),
+            )
+        except self.exceptions.ConditionalCheckFailedException:
+            LOGGER.debug('existing follower')
+            # follower count should stay
+        except self.exceptions.ProvisionedThroughputExceededException as exc:
+            raise TooManyAccessError(
+                'exceeded provisioned table throughput',
+            ) from exc
+        except self.exceptions.RequestLimitException as exc:
+            raise TooManyAccessError('exceeded API access limit') from exc
+
+
     @staticmethod
-    def make_primary_key(username: str) -> UserTableKey:
+    def make_user_key(username: str) -> Dict[str, Any]:
         """Returns a primary key to get a user from the user table.
         """
         return {
-            'pk': f'{UserTable.PK_PREFIX}{username}',
+            'pk': f'{UserTable.USER_PK_PREFIX}{username}',
             'sk': 'reserved',
+        }
+
+    @staticmethod
+    def make_follower_key(username: str, follower_id: str) -> Dict[str, Any]:
+        """Returns a primary key to get a follower from the user table.
+        """
+        return {
+            'pk': f'{UserTable.FOLLOWER_PK_PREFIX}{username}',
+            'sk': follower_id,
         }
 
     @staticmethod
@@ -198,8 +267,29 @@ class UserTable:
 
         :raises ValueError: if ``pk`` is invalid.
         """
-        if not pk.startswith(UserTable.PK_PREFIX):
+        if not pk.startswith(UserTable.USER_PK_PREFIX):
             raise ValueError(
-                f'partition key must start with "{UserTable.PK_PREFIX}"',
+                f'partition key must start with "{UserTable.USER_PK_PREFIX}"',
             )
-        return pk[len(UserTable.PK_PREFIX):]
+        return pk[len(UserTable.USER_PK_PREFIX):]
+
+    @property
+    def exceptions(self):
+        """Module containing exceptions from the DynamoDB client.
+        """
+        return self._table.meta.client.exceptions
+
+
+def get_username_from_user_id(user_id: str) -> str:
+    """Extracts the username from a given user ID.
+
+    :param str user_id: like "https://<domain-name>/users/{username}".
+
+    :raises ValueError: ``user_id`` does not represent a user ID.
+    """
+    parsed = urlparse(user_id)
+    path = unquote(parsed.path).rstrip('/')
+    match = re.match(r'^\/users\/([^/]+)$', path)
+    if match is None:
+        raise ValueError(f'not a user ID: {user_id}')
+    return match.group(1)
