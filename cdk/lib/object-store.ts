@@ -71,4 +71,9 @@ export class ObjectStore extends Construct {
   grantPutIntoInbox(grantee: iam.IGrantable): iam.Grant {
     return this.objectsBucket.grantPut(grantee, INBOX_PREFIX + '*');
   }
+
+  /** Grants a given principal "Get" access from the inbox. */
+  grantGetFromInbox(grantee: iam.IGrantable): iam.Grant {
+    return this.objectsBucket.grantRead(grantee, INBOX_PREFIX + '*');
+  }
 }
