@@ -3,7 +3,7 @@
 """Provides access to activities.
 """
 
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 import logging
 from typing import Any, Dict, Iterable, Optional, Union
 import requests
@@ -65,6 +65,14 @@ class Activity(DictObject):
         """ID of the actor of this activity.
         """
         return Reference(self._underlying['actor']).id
+
+    @abstractmethod
+    def visit(self, visitor: 'ActivityVisitor'):
+        """Visits this activity.
+
+        You can safely casts this activity to a specific type by using this
+        method.
+        """
 
     @abstractmethod
     def resolve_objects(self, object_store: ObjectStore):
@@ -173,6 +181,9 @@ class Announce(MessageActivity):
             raise ValueError(f'type must be "Announce": {obj.get("type")}')
         return Announce(obj)
 
+    def visit(self, visitor: 'ActivityVisitor'):
+        visitor.visit_announce(self)
+
     def resolve_objects(self, object_store: ObjectStore):
         """Resolves the referenced object.
 
@@ -197,6 +208,9 @@ class Create(MessageActivity):
         if obj.get('type') != 'Create':
             raise ValueError(f'type must be "Create": {obj.get("type")}')
         return Create(obj)
+
+    def visit(self, visitor: 'ActivityVisitor'):
+        visitor.visit_create(self)
 
     def resolve_objects(self, object_store: ObjectStore):
         """Resolves the referenced object.
@@ -231,6 +245,9 @@ class Follow(Activity):
         if obj.get('type') != 'Follow':
             raise ValueError(f'type must be "Follow": {obj.get("type")}')
         return Follow(obj)
+
+    def visit(self, visitor: 'ActivityVisitor'):
+        visitor.visit_follow(self)
 
     def resolve_objects(self, object_store: ObjectStore):
         """Resolves the referenced object.
@@ -271,6 +288,9 @@ class Undo(Activity):
             raise ValueError(f'type must be "Undo": {obj.get("type")}')
         return Undo(obj)
 
+    def visit(self, visitor: 'ActivityVisitor'):
+        visitor.visit_undo(self)
+
     def resolve_objects(self, object_store: ObjectStore):
         """Resolves the referenced object.
 
@@ -284,6 +304,33 @@ class Undo(Activity):
         """ID of the undone object.
         """
         return Reference(self._underlying['object']).id
+
+
+class ActivityVisitor(ABC):
+    """Visitor that processes typed activities.
+
+    You have to override visitor methods specific to your needs.
+    Visitor methods do nothing by default.
+    """
+    def visit_announce(self, announce: Announce):
+        """Processes an "Announce" activity.
+        """
+        LOGGER.debug('ignoring "Announce": %s', announce._underlying) # pylint: disable=protected-access
+
+    def visit_create(self, create: Create):
+        """Processes a "Create" activity.
+        """
+        LOGGER.debug('ignoring "Create": %s', create._underlying) # pylint: disable=protected-access
+
+    def visit_follow(self, follow: Follow):
+        """Processes a "Follow" activity.
+        """
+        LOGGER.debug('ignoring "Follow": %s', follow._underlying) # pylint: disable=protected-access
+
+    def visit_undo(self, undo: Undo):
+        """Processes an "Undo" activity.
+        """
+        LOGGER.debug('ignoring "Undo": %s', undo._underlying) # pylint: disable=protected-access
 
 
 def resolve_object(
