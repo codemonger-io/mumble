@@ -52,11 +52,21 @@ class NotFoundError(MumbleBaseException):
     """
 
 
-class TooManyAccessError(MumbleBaseException):
+class TransientError(MumbleBaseException):
+    """Raised if there is a transient error; e.g., temporary service outage.
+    """
+
+
+class TooManyAccessError(TransientError):
     """Raised if there are too many requests.
     """
 
 
 class UnauthorizedError(MumbleBaseException):
     """Raised if a credential is invalid.
+    """
+
+
+class CommunicationError(MumbleBaseException):
+    """Raised if communication between other server fails.
     """
