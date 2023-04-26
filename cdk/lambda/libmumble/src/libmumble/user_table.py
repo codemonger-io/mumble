@@ -240,6 +240,60 @@ class UserTable:
         except self.exceptions.RequestLimitException as exc:
             raise TooManyAccessError('exceeded API access limit') from exc
 
+    def remove_user_follower(self, username: str, follow: Follow):
+        """Removes a follower of a given user.
+
+        :raises ValueError: if the object of ``follow`` is not the specified
+        user.
+        """
+        if get_username_from_user_id(follow.followed_id) != username:
+            raise ValueError(
+                f'unfollow request in wrong inbox: {follow.followed_id},'
+                f' inbox={username}',
+            )
+        key = UserTable.make_follower_key(username, follow.actor_id)
+        try:
+            LOGGER.debug(
+                'removing follower: username=%s, follower=%s',
+                username,
+                follow.actor_id,
+            )
+            res = self._table.delete_item(
+                Key=key,
+                ReturnValues='ALL_OLD',
+                ConditionExpression=Attr('pk').exists(),
+            )
+            if res['Attributes'].get('followActivityId') != follow.id:
+                LOGGER.warning(
+                    'follow activity ID mismatch: %s != %s',
+                    follow.id,
+                    res['Attributes'].get('followActivityId'),
+                )
+            # decrements the number of followers
+            LOGGER.debug('decrementing follower count')
+            res = self._table.update_item(
+                Key=UserTable.make_user_key(username),
+                AttributeUpdates={
+                    'followerCount': {
+                        'Value': -1,
+                        'Action': 'ADD',
+                    },
+                },
+                ReturnValues='UPDATED_NEW',
+            )
+            LOGGER.debug(
+                'new follower count: %d',
+                res['Attributes'].get('followerCount'),
+            )
+        except self.exceptions.ConditionalCheckFailedException:
+            LOGGER.debug('non-existing follower')
+            # follower cound should stay
+        except self.exceptions.ProvisionedThroughputExceededException as exc:
+            raise TooManyAccessError(
+                'exceeded provisioned table throughput',
+            ) from exc
+        except self.exceptions.RequestLimitException as exc:
+            raise TooManyAccessError('exceeded API access limit') from exc
 
     @staticmethod
     def make_user_key(username: str) -> Dict[str, Any]:
