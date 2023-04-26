@@ -30,7 +30,8 @@ class APObject(ABC):
     def id(self) -> str: # pylint: disable=invalid-name
         """ID of this object.
 
-        :raises AttributeError: if the property is not implemented.
+        :raises AttributeError: if the property is not implemented, or not
+        assigned.
         """
         raise AttributeError('id is not implemented')
 
@@ -57,25 +58,27 @@ class DictObject(APObject):
     def __init__(self, underlying: Dict[str, Any]):
         """Wraps a given ``dict``.
 
-        :raises ValueError: if ``underlying`` does not have ``id`` or ``type``,
-        or if they are not strings.
+        :raises ValueError: if ``underlying`` does not have ``type``.
+
+        :raises TypeError: if ``underlying`` has non-str ``id``,
+        or if ``underlying`` has a non-str ``type``.
         """
-        if 'id' not in underlying:
-            raise ValueError('invalid object: missing id')
-        if not isinstance(underlying['id'], str):
-            raise ValueError(
+        if 'id' in underlying and not isinstance(underlying['id'], str):
+            raise TypeError(
                 f'id must be str but {type(underlying["id"])}',
             )
         if 'type' not in underlying:
             raise ValueError('invalid object: missing type')
         if not isinstance(underlying['type'], str):
-            raise ValueError(
+            raise TypeError(
                 f'type must be str but {type(underlying["type"])}',
             )
         self._underlying = underlying
 
     @property
     def id(self) -> str:
+        if 'id' not in self._underlying:
+            raise AttributeError('id is not assigned')
         return self._underlying['id']
 
     @property
@@ -115,9 +118,10 @@ class Link(DictObject):
     def __init__(self, underlying: Dict[str, Any]):
         """Wraps a given ``dict``.
 
-        :raises ValueError: if ``underlying`` has no ``href``, or if ``href``
-        is not a string, or if ``type`` is not "Link", or if ``underlying`` is
-        an invalid object.
+        :raises ValueError: if ``underlying`` has no ``href``, or if ``type``
+        is not "Link", or if ``underlying`` is an invalid object.
+
+        :raises TypeError: if ``underlying`` has a non-str ``href``.
         """
         super().__init__(underlying)
         if self.type != 'Link':
@@ -125,7 +129,7 @@ class Link(DictObject):
         if 'href' not in self._underlying:
             raise ValueError('invalid link object: missing link')
         if not isinstance(self._underlying['href'], str):
-            raise ValueError(
+            raise TypeError(
                 f'href must be str but {type(self._underlying["href"])}',
             )
 
@@ -156,6 +160,8 @@ class ObjectStore:
 
     def add(self, obj: APObject):
         """Adds a given object to this store.
+
+        :raises AttributeError: if ``obj`` has no ID.
         """
         self._dict[obj.id] = obj
 
@@ -176,6 +182,9 @@ class Reference:
         a ``dict`` representation, or if ``ref`` does not have ``href`` when
         ``ref`` is a link object, or if ``ref`` does not have ``id`` when
         ``ref`` represents the object itself.
+
+        :raises TypeError: if ``ref`` is a "Link" but has a non-str ``href``,
+        or if ``ref`` is an object itself but has a non-str ``id``.
         """
         if not isinstance(ref, str):
             if 'type' not in ref:
@@ -184,16 +193,12 @@ class Reference:
                 if 'href' not in ref:
                     raise ValueError('link ref must have href')
                 if not isinstance(ref['href'], str):
-                    raise ValueError(
-                        f'href must be str but {type(ref["href"])}',
-                    )
+                    raise TypeError('href must be str but {type(ref["href"])}')
             else:
                 if 'id' not in ref:
                     raise ValueError('object must have id')
                 if not isinstance(ref['id'], str):
-                    raise ValueError(
-                        f'id must be str but {type(ref["id"])}',
-                    )
+                    raise TypeError('id must be str but {type(ref["id"])}')
         self.ref = ref
 
     @property
