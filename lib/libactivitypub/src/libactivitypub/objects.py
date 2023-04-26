@@ -44,8 +44,11 @@ class APObject(ABC):
         raise AttributeError('type is not implemented')
 
     @abstractmethod
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self, with_context=True) -> Dict[str, Any]:
         """Returns a ``dict`` representation.
+
+        :param bool with_context: retains the JSON-LD context field if this
+        flag is ``True``, removes the context field if it is ``False``.
         """
 
 
@@ -85,8 +88,12 @@ class DictObject(APObject):
     def type(self) -> str:
         return self._underlying['type']
 
-    def to_dict(self) -> Dict[str, Any]:
-        return self._underlying
+    def to_dict(self, with_context=True) -> Dict[str, Any]:
+        if with_context or '@context' not in self._underlying:
+            return self._underlying
+        underlying = self._underlying.copy()
+        del underlying['@context']
+        return underlying
 
     @staticmethod
     def resolve(obj: Union[str, Dict[str, Any]]) -> 'DictObject':
