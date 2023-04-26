@@ -24,8 +24,8 @@ class Activity(DictObject):
     def __init__(self, underlying: Dict[str, Any]):
         """Wraps a given ``dict`` representing an activity.
 
-        :raises ValueError: if ``underlying`` does not have ``id``, ``type``,
-        or ``actor``.
+        :raises ValueError: if ``underlying`` does not represent a valid
+        object, or if ``underlying`` has no ``actor``.
         """
         super().__init__(underlying)
         if 'actor' not in underlying:
@@ -48,6 +48,10 @@ class Activity(DictObject):
             return Follow.parse_object(obj)
         if obj_type == 'Undo':
             return Undo.parse_object(obj)
+        if obj_type == 'Accept':
+            return Accept(obj)
+        if obj_type == 'Reject':
+            return Reject(obj)
         if obj_type is not None:
             raise ValueError(f'unsupported activity type: {obj_type}')
         raise ValueError('invalid object: type is missing')
@@ -306,6 +310,85 @@ class Undo(Activity):
         return Reference(self._underlying['object']).id
 
 
+class ResponseActivity(Activity):
+    """Activity sent as a response.
+
+    There are "Accept" and "Reject" so far.
+    """
+    def __init__(self, underlying: Dict[str, Any]):
+        """Wraps a given response activity object.
+
+        :raises ValueError: if ``underlying`` does not represent an activity,
+        or if ``underlying`` does not have ``object``.
+        """
+        super().__init__(underlying)
+        if 'object' not in underlying:
+            raise ValueError('invalid response activity: object is missing')
+
+    def resolve_objects(self, object_store: ObjectStore):
+        """Resolves the reference object.
+
+        Resolves ``object``.
+        """
+        super().resolve_objects(object_store)
+        resolve_object(self._underlying['object'], object_store)
+
+    @property
+    def object_id(self) -> str:
+        """ID of the object.
+        """
+        return Reference(self._underlying['object']).id
+
+
+class Accept(ResponseActivity):
+    """Wraps an "Accept" activity.
+    """
+    def __init__(self, underlying: Dict[str, Any]):
+        """Wraps a given "Accept" activity object.
+
+        :raises ValueError: if ``underlying`` does not represent an "Accept"
+        activity object.
+
+        :raises TypeError: if ``underlying`` contains an incompatible type.
+        """
+        super().__init__(underlying)
+        if self.type != 'Accept':
+            raise ValueError(f'type must be "Accept": {self.type}')
+
+    @staticmethod
+    def create(actor_id: str, activity: Activity) -> 'Accept':
+        """Creates an "Accept" from a given actor to another actor regarding
+        a given activity.
+        """
+        return Accept({
+            'type': 'Accept',
+            'actor': actor_id,
+            'object': activity.to_dict(with_context=False),
+        })
+
+    def visit(self, visitor: 'ActivityVisitor'):
+        visitor.visit_accept(self)
+
+
+class Reject(ResponseActivity):
+    """Wraps an "Reject" activity.
+    """
+    def __init__(self, underlying: Dict[str, Any]):
+        """Wraps a given "Reject" activity object.
+
+        :raises ValueError: if ``underlying`` does not represent a "Reject"
+        activity object.
+
+        :raises TypeError: if ``underlying`` contains an incompatible type.
+        """
+        super().__init__(underlying)
+        if self.type != 'Reject':
+            raise ValueError(f'type must be "Reject": {self.type}')
+
+    def visit(self, visitor: 'ActivityVisitor'):
+        visitor.visit_reject(self)
+
+
 class ActivityVisitor(ABC):
     """Visitor that processes typed activities.
 
@@ -331,6 +414,16 @@ class ActivityVisitor(ABC):
         """Processes an "Undo" activity.
         """
         LOGGER.debug('ignoring "Undo": %s', undo._underlying) # pylint: disable=protected-access
+
+    def visit_accept(self, accept: Accept):
+        """Processes an "Accept" activity.
+        """
+        LOGGER.debug('ignoring "Accept": %s', accept._underlying) # pylint: disable=protected-access
+
+    def visit_reject(self, reject: Reject):
+        """Processes a "Reject" activity.
+        """
+        LOGGER.debug('ignoring "Reject": %s', reject._underlying) # pylint: disable=protected-access
 
 
 def resolve_object(
