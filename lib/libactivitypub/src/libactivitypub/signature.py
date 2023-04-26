@@ -16,7 +16,7 @@ import hashlib
 import logging
 import math
 import re
-from typing import Dict, Iterable, List, TypedDict
+from typing import Dict, Iterable, List, Tuple, TypedDict
 from Crypto.Hash import SHA256
 from Crypto.PublicKey import RSA
 from Crypto.Signature import pkcs1_15
@@ -101,7 +101,7 @@ def parse_signature(signature: str) -> Signature:
     }
 
 
-def parse_signature_headers(headers: str) -> List[str]:
+def parse_signature_headers_parameter(headers: str) -> List[str]:
     """Parses a given headers parameter in a signature.
 
     Example: "(request-target) host date digest content-type"
@@ -140,6 +140,16 @@ def is_valid_signature_date(date: str) -> bool:
     return math.fabs(elapsed.total_seconds()) <= SIGNATURE_WINDOW_IN_SECONDS
 
 
+def digest_request_body(body: bytes) -> str:
+    """Calculates the SHA-256 digest of a given request body.
+
+    :returns: SHA-256 digest in the form "SHA-256=<Base64 hash>".
+    """
+    hasher = hashlib.sha256()
+    hasher.update(body)
+    return f'SHA-256={base64.b64encode(hasher.digest()).decode()}'
+
+
 def is_valid_request_body(body: str, digest: str) -> bool:
     """Returns if a given request body and digest match.
 
@@ -147,10 +157,19 @@ def is_valid_request_body(body: str, digest: str) -> bool:
 
     :returns: whether the SHA-256 hash of ``body`` matches ``digest``.
     """
-    hasher = hashlib.sha256()
-    hasher.update(body.encode('utf-8'))
-    body_digest = f'SHA-256={base64.b64encode(hasher.digest()).decode()}'
-    return body_digest == digest
+    return digest_request_body(body.encode('utf-8')) == digest
+
+
+def concatenate_headers(
+    headers: Iterable[str],
+    header_values: Dict[str, str],
+) -> str:
+    """Concatenate given headers.
+
+    The result is to be used to verify or sign.
+    """
+    lines = [f'{header}: {header_values[header]}' for header in headers]
+    return '\n'.join(lines)
 
 
 def verify_headers(
@@ -169,19 +188,44 @@ def verify_headers(
 
     :raises VerificationError: if the signature cannot be verified.
     """
-    # builds the message
-    lines = [f'{header}: {header_values[header]}' for header in headers]
-    message = '\n'.join(lines)
+    message = concatenate_headers(headers, header_values)
     LOGGER.debug('message to verify: %s', message)
-    # verifies the message
     signature_bytes = base64.b64decode(signature)
-    rsa_key = RSA.import_key(public_key_pem)
+    try:
+        rsa_key = RSA.import_key(public_key_pem)
+    except (IndexError, TypeError, ValueError) as exc:
+        raise VerificationError(f'invalid public key: {exc}') from exc
     hashed = SHA256.new(message.encode('utf-8'))
     verifier = pkcs1_15.new(rsa_key)
     try:
         verifier.verify(hashed, signature_bytes)
-    except (ValueError, TypeError) as exc:
+    except (TypeError, ValueError) as exc:
         raise VerificationError(f'signature is not authentic: {exc}') from exc
+
+
+def sign_headers(
+    headers: Iterable[str],
+    header_values: Dict[str, str],
+    private_key_pem: str,
+) -> str:
+    """Signs given headers.
+
+    :returns: Base64-encoded signature.
+
+    :raises ValueError: if the private key is invalid.
+    """
+    message = concatenate_headers(headers, header_values)
+    LOGGER.debug('message to be signed: %s', message)
+    try:
+        key = RSA.import_key(private_key_pem)
+    except (IndexError, TypeError, ValueError) as exc:
+        raise ValueError(f'invalid private key: {exc}') from exc
+    message_hash = SHA256.new(message.encode('utf-8'))
+    try:
+        signature_bytes = pkcs1_15.new(key).sign(message_hash)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f'failed to sign: {exc}') from exc
+    return base64.b64encode(signature_bytes).decode('utf-8')
 
 
 def verify_signature_and_headers(
@@ -235,7 +279,7 @@ def verify_signature_and_headers(
         raise ValueError(f'date is out of bounds: {date}')
     # parses the headers
     LOGGER.debug('parsing headers: %s', signature['headers'])
-    headers = parse_signature_headers(signature['headers'])
+    headers = parse_signature_headers_parameter(signature['headers'])
     # validates the body if a digest is given
     if 'digest' in headers:
         LOGGER.debug('validating body')
@@ -251,4 +295,29 @@ def verify_signature_and_headers(
         header_values,
         signature['signature'],
         public_key_pem,
+    )
+
+
+def make_signature_header(
+    key_id: str,
+    private_key_pem: str,
+    header_values: Iterable[Tuple[str, str]],
+) -> str:
+    """Makes a signature header value.
+
+    The header values in the message to be signed is ordered in the same order
+    in ``header_values``.
+
+    :params Iterable[Tuple[str, str]] header_values: each item must be a pair
+    of a header name and the value.
+
+    :raises ValueError: if the private key is invalid.
+    """
+    headers = [header for header, _ in header_values]
+    signature = sign_headers(headers, dict(header_values), private_key_pem)
+    return (
+        f'keyId="{key_id}",'
+        'algorithm="rsa-sha256",'
+        f'headers="{" ".join(headers)}",'
+        f'signature="{signature}"'
     )

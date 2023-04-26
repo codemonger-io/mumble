@@ -7,10 +7,13 @@ from datetime import datetime, timedelta, timezone
 from email.utils import format_datetime
 from libactivitypub.signature import (
     VerificationError,
+    digest_request_body,
     is_valid_request_body,
     is_valid_signature_date,
+    make_signature_header,
     parse_signature,
-    parse_signature_headers,
+    parse_signature_headers_parameter,
+    sign_headers,
     verify_headers,
 )
 import pytest
@@ -172,23 +175,24 @@ def test_parse_signature_single_quoted():
         parse_signature(signature)
 
 
-def test_parse_signature_headers_with_mandatory_headers():
-    """Tests ``parse_signature_headers`` with "(request-taget) host date".
+def test_parse_signature_headers_parameter_with_mandatory_headers():
+    """Tests ``parse_signature_headers_parameter`` with
+    "(request-taget) host date".
     """
     headers = '(request-target) host date'
-    assert parse_signature_headers(headers) == [
+    assert parse_signature_headers_parameter(headers) == [
         '(request-target)',
         'host',
         'date',
     ]
 
 
-def test_parse_signature_headers_with_extra_headers():
-    """Tests ``parse_signature_headers`` with
+def test_parse_signature_headers_parameter_with_extra_headers():
+    """Tests ``parse_signature_headers_parameter`` with
     "(request-target) host date digest content-type".
     """
     headers = '(request-target) host date digest content-type'
-    assert parse_signature_headers(headers) == [
+    assert parse_signature_headers_parameter(headers) == [
         '(request-target)',
         'host',
         'date',
@@ -197,36 +201,39 @@ def test_parse_signature_headers_with_extra_headers():
     ]
 
 
-def test_parse_signature_headers_without_request_target():
-    """Tests ``parse_signature_headers`` with "host date".
+def test_parse_signature_headers_parameter_without_request_target():
+    """Tests ``parse_signature_headers_parameter`` with "host date".
     """
     headers = 'host date'
     with pytest.raises(ValueError):
-        parse_signature_headers(headers)
+        parse_signature_headers_parameter(headers)
 
 
-def test_parse_signature_headers_without_host():
-    """Tests ``parse_signature_headers`` with "(request-target) date".
+def test_parse_signature_headers_parameter_without_host():
+    """Tests ``parse_signature_headers_parameter`` with
+    "(request-target) date".
     """
     headers = '(request-target) date'
     with pytest.raises(ValueError):
-        parse_signature_headers(headers)
+        parse_signature_headers_parameter(headers)
 
 
-def test_parse_signature_headers_without_date():
-    """Tests ``parse_signature_headers`` with "(request-target) host".
+def test_parse_signature_headers_parameter_without_date():
+    """Tests ``parse_signature_headers_parameter`` with
+    "(request-target) host".
     """
     headers = '(request-target) host'
     with pytest.raises(ValueError):
-        parse_signature_headers(headers)
+        parse_signature_headers_parameter(headers)
 
 
-def test_parse_signature_headers_with_extra_whitespace():
-    """Tests ``parse_signature_headers`` with "(request-target)  host  date".
+def test_parse_signature_headers_parameter_with_extra_whitespace():
+    """Tests ``parse_signature_headers_parameter`` with
+    "(request-target)  host  date".
     """
     headers = '(request-target)  host  date'
     with pytest.raises(ValueError):
-        parse_signature_headers(headers)
+        parse_signature_headers_parameter(headers)
 
 
 def test_is_valid_signature_date_with_current_time():
@@ -260,6 +267,14 @@ def test_is_valid_signature_date_with_invalid_date():
         is_valid_signature_date('2023年4月22日(土)')
 
 
+def test_digest_request_body():
+    """Tests ``digest_request_body``.
+    """
+    body = 'Please digest me!'.encode('utf-8')
+    digest = 'SHA-256=bJHL/rvRZ2mepX6J1bjavpj8TFMFNM+EDx8lQ/3LDGI='
+    assert digest_request_body(body) == digest
+
+
 def test_is_valid_request_body_with_valid_body():
     """Tests ``is_valid_request_body`` with a valid body.
     """
@@ -279,7 +294,7 @@ def test_is_valid_request_body_with_invalid_body():
 def test_verify_headers_with_valid_values():
     """Tests ``verify_headers`` with valid values.
 
-    I made the signature according to the steps described at
+    Kikuo: I made the signature according to the steps described at
     https://www.pycryptodome.org/src/signature/pkcs1_v1_5
     """
     headers = ['(request-target)', 'host', 'date', 'digest']
@@ -315,7 +330,8 @@ def test_verify_headers_with_wrong_private_key():
     """Tests ``verify_headers`` with a signature signed with a wrong private
     key.
 
-    I made the signature according to the steps described at
+    Kikuo: I made the signature according to the steps described at
+    https://www.pycryptodome.org/src/signature/pkcs1_v1_5
     """
     headers = ['(request-target)', 'host', 'date', 'digest']
     header_values = {
@@ -344,6 +360,93 @@ def test_verify_headers_with_tampered_values():
     public_key_pem = PUBLIC_KEY_PEM_1
     with pytest.raises(VerificationError):
         verify_headers(headers, header_values, signature, public_key_pem)
+
+
+def test_verify_headers_with_broken_public_key():
+    """Tests ``verify_headers`` with a broken public key.
+    """
+    headers = ['(request-target)', 'host', 'date', 'digest']
+    header_values = {
+        '(request-target)': 'post /users/kemoto/inbox',
+        'host': 'mumble.codemonger.io',
+        'date': 'Fri, 21 Apr 2023 11:32:00 GMT',
+        'digest': 'SHA-256=abcdefg',
+    }
+    signature = 'KTZHoFpvAy0y7xl2Z391YVxW/PEVUWUFaG57vP1y22dK8tPuhvJ+z3G0H0eWwQUpybdR53qF6A+tHWyDdTn0fwRk6jwNqmY9QH4sp7lddv2q0tNoFynTWjJWGe0qJKurFD6Pfp/6nwsgWC6sgtIRdVjh/iQN4UZH4RLTs1GoNnRMzS97srWheq6UlKZzhGWT8Os+88JIuuiZXDOqyuHMFT16Dfmy2IoynVLaJqSap22QYwWZiBuRTkirQUX6dcyF5EE99CgRp2u7f1SQW/PoBsKr+WlwnbTzIwzd9ulZ/yLmnZazJMBuPgJrQgQkkKDdOCszSrsc1eoiHBNsUCF+Iw=='
+    public_key_pem = 'Trust me! I am a public key!'
+    with pytest.raises(VerificationError):
+        verify_headers(headers, header_values, signature, public_key_pem)
+
+
+def test_sign_headers():
+    """Tests ``sign_headers`` with ``PRIVATE_KEY_PEM_1``.
+
+    Kikuo: I made the signature according to the steps described at
+    https://www.pycryptodome.org/src/signature/pkcs1_v1_5
+    """
+    headers = ['(request-target)', 'host', 'date', 'digest', 'content-type']
+    header_values = {
+        '(request-target)': 'post /users/kemoto/inbox',
+        'host': 'mumble.codemonger.io',
+        'date': 'Wed, 26 Apr 2023 11:32:00 GMT',
+        'digest': 'SHA-256=abcdefg',
+        'content-type': 'application/json',
+    }
+    private_key_pem = PRIVATE_KEY_PEM_1
+    signature = 'ZKAhY+h/a9nstRzRBlXFr7F3+75SjfJJQMkYBkoO4wStbfL7hf+EfQHRaDkw6wR95gec/yBnBFY/mvxshA+ctglD58gr7K8uYZJZDBUqbuSXES+HTTIZFBj+486jjE5F8faEb2Y0fW7UgdedPV6Jsuu3CraoyxhfbYtn32sHENfMJma7En9OFo0Sp7WX6reqMgBiW70Ogr1xoz3cRsQBgxg9POtghfI8NCiYDAsKe/rdYx3kBicps9Cel3aQ/zz3nPYtSrAjLwPYJ+PFPjni6HVt5vCq5yjo1qFLtZF0IEP3iOQbA7oibWy9msQQgpFo6ib2zW5iq9e+mCun5MmiwA=='
+    assert sign_headers(headers, header_values, private_key_pem) == signature
+
+
+def test_sign_headers_with_public_key():
+    """Tests ``sign_headers`` with a public key.
+    """
+    headers = ['(request-target)', 'host', 'date', 'digest', 'content-type']
+    header_values = {
+        '(request-target)': 'post /users/kemoto/inbox',
+        'host': 'mumble.codemonger.io',
+        'date': 'Wed, 26 Apr 2023 11:32:00 GMT',
+        'digest': 'SHA-256=abcdefg',
+        'content-type': 'application/json',
+    }
+    private_key_pem = PUBLIC_KEY_PEM_1
+    with pytest.raises(ValueError):
+        sign_headers(headers, header_values, private_key_pem)
+
+
+def test_sign_headers_with_broken_key():
+    """Tests ``sign_headers`` with a broken private key.
+    """
+    headers = ['(request-target)', 'host', 'date', 'digest', 'content-type']
+    header_values = {
+        '(request-target)': 'post /users/kemoto/inbox',
+        'host': 'mumble.codemonger.io',
+        'date': 'Wed, 26 Apr 2023 11:32:00 GMT',
+        'digest': 'SHA-256=abcdefg',
+        'content-type': 'application/json',
+    }
+    private_key_pem = 'Please use me as a private key!'
+    with pytest.raises(ValueError):
+        sign_headers(headers, header_values, private_key_pem)
+
+
+def test_make_signature_header():
+    """Tests ``make_signature_header``.
+    """
+    key_id = 'https://mumble.codemonger.io/users/kemoto#main-key'
+    header_values = [
+        ('(request-target)', 'post /users/kemoto/inbox'),
+        ('host', 'mumble.codemonger.io'),
+        ('date', 'Wed, 26 Apr 2023 11:32:00 GMT'),
+        ('digest', 'SHA-256=abcdefg'),
+        ('content-type', 'application/json'),
+    ]
+    private_key_pem = PRIVATE_KEY_PEM_1
+    assert make_signature_header(key_id, private_key_pem, header_values) == (
+        'keyId="https://mumble.codemonger.io/users/kemoto#main-key",'
+        'algorithm="rsa-sha256",'
+        'headers="(request-target) host date digest content-type",'
+        'signature="ZKAhY+h/a9nstRzRBlXFr7F3+75SjfJJQMkYBkoO4wStbfL7hf+EfQHRaDkw6wR95gec/yBnBFY/mvxshA+ctglD58gr7K8uYZJZDBUqbuSXES+HTTIZFBj+486jjE5F8faEb2Y0fW7UgdedPV6Jsuu3CraoyxhfbYtn32sHENfMJma7En9OFo0Sp7WX6reqMgBiW70Ogr1xoz3cRsQBgxg9POtghfI8NCiYDAsKe/rdYx3kBicps9Cel3aQ/zz3nPYtSrAjLwPYJ+PFPjni6HVt5vCq5yjo1qFLtZF0IEP3iOQbA7oibWy9msQQgpFo6ib2zW5iq9e+mCun5MmiwA=="'
+    )
 
 
 # private key for tests (DO NOT USE for other than tests)
