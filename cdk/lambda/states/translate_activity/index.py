@@ -24,11 +24,14 @@ from libactivitypub.activity import (
 )
 from libmumble.exceptions import (
     BadConfigurationError,
+    CommunicationError,
     CorruptedDataError,
     NotFoundError,
+    TransientError,
 )
 from libmumble.objects_store import get_username_from_inbox_key
 from libmumble.user_table import UserTable
+import requests
 
 
 LOGGER = logging.getLogger(__name__)
@@ -56,6 +59,8 @@ def dict_as_stored_activity(d: Any) -> StoredActivity: # pylint: disable=invalid
     """Casts a given ``dict`` as a ``StoredActivity``.
 
     :raises TypeError: if ``d`` is not a ``StoredActivity``.
+
+    :raises KeyError: if ``d`` is missing a necessary key.
     """
     if not isinstance(d, dict):
         raise TypeError(f'dict is expected but: {type(d)}')
@@ -101,8 +106,43 @@ class ActivityTranslator(ActivityVisitor):
 
     def visit_undo(self, undo: Undo):
         """Translates an "Undo" activity.
+
+        :raises ValueError: if the undone object has a problem.
+
+        :raises TypeError: if the undone object has a type error.
+
+        :raises requests.HTTPError: if an HTTP request fails.
+
+        :raises requests.Timeout: if an HTTP request times out.
+
+        :raises TooManyAccessError: if there are too many requests.
         """
         LOGGER.debug('translating Undo: %s', undo.to_dict())
+        undoer = Undoer(self.username)
+        activity = undo.resolve_undone_activity()
+        activity.visit(undoer)
+
+
+class Undoer(ActivityVisitor):
+    """``ActivityVisitor`` that undoes an activity.
+    """
+    username: str
+    """Username of the inbox owner."""
+
+    def __init__(self, username: str):
+        """Initializes with the username of the inbox owner.
+        """
+        self.username = username
+
+    def visit_follow(self, follow: Follow):
+        """Undoes a "Follow" activity.
+
+        :raises ValueError: if the unfollowed user is not the inbox owner.
+
+        :raises TooManyAccessError: if there are too many requests.
+        """
+        LOGGER.debug('undoing Follow: %s', follow.to_dict())
+        USER_TABLE.remove_user_follower(self.username, follow)
 
 
 def load_activity(stored_activity: StoredActivity) -> Activity:
@@ -110,7 +150,8 @@ def load_activity(stored_activity: StoredActivity) -> Activity:
 
     :raises NotFoundError: if the specified object is not found.
 
-    :raises ValueError: if the specified object does not represent an activity.
+    :raises CorruptedDataError: if the specified object does not represent
+    a valid activity.
     """
     s3_client = boto3.client('s3')
     try:
@@ -129,7 +170,10 @@ def load_activity(stored_activity: StoredActivity) -> Activity:
     finally:
         body.close()
 
-    return Activity.parse_object(json.loads(data))
+    try:
+        return Activity.parse_object(json.loads(data))
+    except (TypeError, ValueError) as exc:
+        raise CorruptedDataError(f'{exc}') from exc
 
 
 def translate_activity(
@@ -140,11 +184,28 @@ def translate_activity(
 
     :returns: optional response activity.
 
-    :raises ValueError: if the activity has an error.
+    :raises CorruptedDataError: if the activity has an error.
+
+    :raises TooManyAccessError: if there are too many requests.
+
+    :raises TransientError: if the other server fails with a transient error;
+    e.g, timeout, 429 status code.
+
+    :raises CommunicationError: if the other server fails with a non-transient
+    error.
     """
-    visitor = ActivityTranslator(username)
-    activity.visit(visitor)
-    return visitor.response
+    try:
+        visitor = ActivityTranslator(username)
+        activity.visit(visitor)
+        return visitor.response
+    except (TypeError, ValueError) as exc:
+        raise CorruptedDataError(f'{exc}') from exc
+    except requests.HTTPError as exc:
+        if exc.response.status_code == 429:
+            raise TransientError(f'too many requests: {exc}') from exc
+        raise CommunicationError(f'{exc}') from exc
+    except requests.Timeout as exc:
+        raise TransientError(f'request timed out: {exc}') from exc
 
 
 def lambda_handler(event, _context):
@@ -203,16 +264,10 @@ def lambda_handler(event, _context):
             f'no username in object key: {exc}',
         ) from exc
 
-    try:
-        activity = load_activity(stored_activity)
-    except ValueError as exc:
-        raise CorruptedDataError(f'{exc}') from exc
+    activity = load_activity(stored_activity)
 
     LOGGER.debug('translating activity: %s', activity.to_dict())
-    try:
-        response = translate_activity(activity, username)
-    except ValueError as exc:
-        raise CorruptedDataError(f'{exc}') from exc
+    response = translate_activity(activity, username)
 
     if response is not None:
         return {
