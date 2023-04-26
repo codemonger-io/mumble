@@ -6,7 +6,7 @@
 from functools import cached_property
 import logging
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 from urllib.parse import unquote, urlparse
 from boto3.dynamodb.conditions import Attr
 from libactivitypub.activity import Follow
@@ -280,16 +280,31 @@ class UserTable:
         return self._table.meta.client.exceptions
 
 
+def parse_user_id(user_id: str) -> Tuple[str, str]:
+    """Parses a given user ID.
+
+    :returns: tuple of domain name and username.
+
+    :raises ValueError: ``user_id`` does not represent a user ID in this
+    service.
+    """
+    parsed = urlparse(user_id)
+    if not parsed.hostname:
+        raise ValueError(f'no domain name: {user_id}')
+    path = unquote(parsed.path).rstrip('/')
+    match = re.match(r'^\/users\/([^/]+)$', path)
+    if match is None:
+        raise ValueError(f'not a user ID: {user_id}')
+    return parsed.hostname, match.group(1)
+
+
 def get_username_from_user_id(user_id: str) -> str:
     """Extracts the username from a given user ID.
 
     :param str user_id: like "https://<domain-name>/users/{username}".
 
-    :raises ValueError: ``user_id`` does not represent a user ID.
+    :raises ValueError: ``user_id`` does not represent a user ID in this
+    service.
     """
-    parsed = urlparse(user_id)
-    path = unquote(parsed.path).rstrip('/')
-    match = re.match(r'^\/users\/([^/]+)$', path)
-    if match is None:
-        raise ValueError(f'not a user ID: {user_id}')
-    return match.group(1)
+    _, username = parse_user_id(user_id)
+    return username
