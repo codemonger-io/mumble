@@ -7,7 +7,15 @@ from abc import ABC, abstractmethod
 import logging
 from typing import Any, Dict, Iterable, Optional, Union
 import requests
-from .objects import ACTOR_TYPES, APObject, DictObject, Reference, ObjectStore
+from .activity_stream import get as activity_stream_get
+from .objects import (
+    ACTOR_TYPES,
+    APObject,
+    DictObject,
+    Link,
+    Reference,
+    ObjectStore,
+)
 
 
 LOGGER = logging.getLogger('libactivitypub.activity')
@@ -303,6 +311,19 @@ class Undo(Activity):
         super().resolve_objects(object_store)
         resolve_object(self._underlying['object'], object_store)
 
+    def resolve_undone_activity(self) -> Activity:
+        """Resolves the undone activity.
+
+        :raises requests.HTTPError: if an HTTP request fails.
+
+        :raises requests.Timeout: if an HTTP request times out.
+
+        :raises ValueError: if a resolved data does not represent an activity.
+
+        :raises TypeError: if a resolved data contains an incompatible type.
+        """
+        return resolve_activity(self._underlying['object'])
+
     @property
     def undone_id(self):
         """ID of the undone object.
@@ -432,18 +453,22 @@ def resolve_object(
 ) -> Optional[APObject]:
     """Resolves an object and stores in an ``ObjectStore``.
 
-    ``maybe_obj`` may be a URI, or a link object, or a ``dict`` representation
-    of the object itself.
+    ``maybe_obj`` may be a URI, a link object, or a ``dict`` representation of
+    the object itself.
 
     Returns the object in ``object_store`` if there is one associated with the
     object ID.
 
     Returns ``None`` if access to the object is unauthorized.
 
-    :raise requests.HTTPError: if an HTTP request fails.
+    :raises requests.HTTPError: if an HTTP request fails.
     but an unauthorized (401) error is ignored with a warning message.
 
-    :raise ValueError: if the object data is invalid.
+    :raises requests.Timeout: if an HTTP request times out.
+
+    :raises ValueError: if the object data is invalid.
+
+    :raises TypeError: if the object data contains an incompatible type.
     """
     obj_ref = Reference(maybe_obj)
     obj = object_store.get(obj_ref.id)
@@ -459,3 +484,29 @@ def resolve_object(
         else:
             object_store.add(obj)
     return obj
+
+
+def resolve_activity(maybe_obj: Union[str, Dict[str, Any]]) -> Activity:
+    """Resolves an activity.
+
+    ``maybe_obj`` may be a URI, a link object, or a ``dict`` representation of
+    the activity itself.
+
+    :raises requests.HTTPError: if an HTTP request fails.
+
+    :raises requests.Timeout: if an HTTP request times out.
+
+    :raises ValueError: if the activity data is invalid.
+
+    :raises TypeError: if the activity data contains an incompatible type.
+    """
+    if isinstance(maybe_obj, str):
+        LOGGER.debug('requesting: %s', maybe_obj)
+        obj = activity_stream_get(maybe_obj)
+    elif maybe_obj.get('type') == 'Link':
+        link = Link(maybe_obj)
+        LOGGER.debug('requesting: %s', link.href)
+        obj = activity_stream_get(link.href)
+    else:
+        obj = maybe_obj
+    return Activity.parse_object(obj)
