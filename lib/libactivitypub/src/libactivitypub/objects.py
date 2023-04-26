@@ -6,6 +6,7 @@
 from abc import ABC, abstractmethod
 import logging
 from typing import Any, Dict, Iterable, Optional, Union
+from uuid6 import uuid7
 from .activity_stream import get as activity_stream_get
 
 
@@ -217,3 +218,14 @@ class Reference:
         if self.ref['type'] == 'Link':
             return self.ref['href']
         return self.ref['id']
+
+
+def generate_id() -> str:
+    """Generates a random ID for an object.
+
+    UUID v7 is used to generate an ID.
+
+    :returns: string representation of a UUID like
+    "00000000-0000-0000-0000-00000000".
+    """
+    return str(uuid7())
