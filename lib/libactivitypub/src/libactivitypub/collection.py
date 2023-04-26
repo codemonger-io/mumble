@@ -5,7 +5,7 @@
 
 import logging
 from typing import Any, Dict, Union
-from .activity_stream import get as activity_stream_get
+from .activity_streams import get as activity_streams_get
 
 
 LOGGER = logging.getLogger('libactivitypub.collection')
@@ -29,4 +29,4 @@ def resolve_collection_page(
     else:
         # page is probably a collection page itself
         return page
-    return activity_stream_get(page_ref)
+    return activity_streams_get(page_ref)

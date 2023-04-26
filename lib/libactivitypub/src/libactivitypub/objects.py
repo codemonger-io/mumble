@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 import logging
 from typing import Any, Dict, Iterable, Optional, Union
 from uuid6 import uuid7
-from .activity_stream import get as activity_stream_get
+from .activity_streams import get as activity_streams_get
 
 
 LOGGER = logging.getLogger('libactivitypub.objects')
@@ -112,11 +112,11 @@ class DictObject(APObject):
         """
         if isinstance(obj, str):
             LOGGER.debug('requesting: %s', obj)
-            return DictObject(activity_stream_get(obj))
+            return DictObject(activity_streams_get(obj))
         if obj.get('type') == 'Link':
             link = Link(obj)
             LOGGER.debug('requesting: %s', link.href)
-            return DictObject(activity_stream_get(link.href))
+            return DictObject(activity_streams_get(link.href))
         return DictObject(obj)
 
 

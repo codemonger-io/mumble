@@ -6,13 +6,13 @@
 from typing import List
 
 
-ACTIVITY_STREAM_MIME_TYPES: List[str] = [
+ACTIVITY_STREAMS_MIME_TYPES: List[str] = [
     'application/activity+json',
     'application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
 ]
-"""MIME types for ActivityStream."""
+"""MIME types for ActivityStreams."""
 
-DEFAULT_ACTIVITY_STREAM_MIME_TYPE: str = (
+DEFAULT_ACTIVITY_STREAMS_MIME_TYPE: str = (
     'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
 )
-"""Default MIME type for ActivityStream."""
+"""Default MIME type for ActivityStreams."""

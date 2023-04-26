@@ -7,12 +7,12 @@ from functools import cached_property
 import logging
 from typing import Any, Dict, TypedDict
 import requests
-from .activity_stream import (
+from .activity_streams import (
     DEFAULT_REQUEST_TIMEOUT,
-    get as activity_stream_get,
+    get as activity_streams_get,
 )
 from .inbox import Inbox
-from .mime_types import ACTIVITY_STREAM_MIME_TYPES
+from .mime_types import ACTIVITY_STREAMS_MIME_TYPES
 from .objects import DictObject
 from .outbox import Outbox
 from .utils import parse_webfinger_id
@@ -93,7 +93,7 @@ class WebFinger:
         try:
             links = self._underlying['links']
             links = [
-                l for l in links if l.get('type') in ACTIVITY_STREAM_MIME_TYPES
+                l for l in links if l.get('type') in ACTIVITY_STREAMS_MIME_TYPES
             ]
             if len(links) > 1:
                 LOGGER.warning(
@@ -124,7 +124,7 @@ class Actor(DictObject):
         :raises ValueError: if the resolved object is not a valid actor.
         """
         LOGGER.debug('requesting actor: %s', actor_uri)
-        underlying = activity_stream_get(actor_uri)
+        underlying = activity_streams_get(actor_uri)
         return Actor(underlying)
 
     @staticmethod
@@ -140,7 +140,7 @@ class Actor(DictObject):
         finger = WebFinger.finger(account)
         try:
             LOGGER.debug('requesting actor: %s', finger.actor_uri)
-            underlying = activity_stream_get(finger.actor_uri)
+            underlying = activity_streams_get(finger.actor_uri)
             return Actor(underlying)
         except AttributeError as exc:
             raise ValueError(f'no actor associated with "{account}"') from exc

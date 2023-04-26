@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 import logging
 from typing import Any, Dict, Iterable, Optional, Union
 import requests
-from .activity_stream import get as activity_stream_get
+from .activity_streams import get as activity_streams_get
 from .objects import (
     ACTOR_TYPES,
     APObject,
@@ -502,11 +502,11 @@ def resolve_activity(maybe_obj: Union[str, Dict[str, Any]]) -> Activity:
     """
     if isinstance(maybe_obj, str):
         LOGGER.debug('requesting: %s', maybe_obj)
-        obj = activity_stream_get(maybe_obj)
+        obj = activity_streams_get(maybe_obj)
     elif maybe_obj.get('type') == 'Link':
         link = Link(maybe_obj)
         LOGGER.debug('requesting: %s', link.href)
-        obj = activity_stream_get(link.href)
+        obj = activity_streams_get(link.href)
     else:
         obj = maybe_obj
     return Activity.parse_object(obj)

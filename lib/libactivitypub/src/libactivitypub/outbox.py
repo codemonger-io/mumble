@@ -6,7 +6,7 @@
 import logging
 from typing import Generator, Optional
 from .activity import Activity
-from .activity_stream import get as activity_stream_get
+from .activity_streams import get as activity_streams_get
 from .collection import resolve_collection_page
 
 
@@ -28,7 +28,7 @@ class Outbox:
         :raises requests.HTTPError: if an HTTP request fails.
         """
         LOGGER.debug('pulling outbox collection: %s', self.outbox_uri)
-        collection = activity_stream_get(self.outbox_uri)
+        collection = activity_streams_get(self.outbox_uri)
         items = collection.get('items') or collection.get('orderedItems')
         next_page: Optional[str] = None # URI of the next page
         if items is None:

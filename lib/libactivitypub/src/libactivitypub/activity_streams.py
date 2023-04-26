@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """Provides utilities to communicate with endpoints responding with
-ActivityStream.
+ActivityStreams.
 """
 
 from email.utils import formatdate
@@ -9,11 +9,11 @@ import logging
 from typing import Any, Dict, TypedDict
 from urllib.parse import urlparse
 import requests
-from .mime_types import DEFAULT_ACTIVITY_STREAM_MIME_TYPE
+from .mime_types import DEFAULT_ACTIVITY_STREAMS_MIME_TYPE
 from .signature import digest_request_body, make_signature_header
 
 
-LOGGER = logging.getLogger('libactivitypub.activity_stream')
+LOGGER = logging.getLogger('libactivitypub.activity_streams')
 LOGGER.setLevel(logging.DEBUG)
 
 ACTIVITY_STREAMS_CONTEXT = 'https://www.w3.org/ns/activitystreams'
@@ -42,7 +42,7 @@ def get(endpoint: str) -> Dict[str, Any]:
     res = requests.get(
         endpoint,
         headers={
-            'Accept': DEFAULT_ACTIVITY_STREAM_MIME_TYPE,
+            'Accept': DEFAULT_ACTIVITY_STREAMS_MIME_TYPE,
         },
         timeout=DEFAULT_REQUEST_TIMEOUT,
     )
@@ -96,7 +96,7 @@ def post(
         endpoint,
         data=body,
         headers={
-            'Accept': DEFAULT_ACTIVITY_STREAM_MIME_TYPE,
+            'Accept': DEFAULT_ACTIVITY_STREAMS_MIME_TYPE,
             'Content-Type': 'application/json',
             'Date': date,
             'Digest': body_digest,

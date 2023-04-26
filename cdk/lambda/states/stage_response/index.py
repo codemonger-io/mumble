@@ -12,7 +12,7 @@ import os
 from typing import Any, Dict
 import boto3
 from libactivitypub.activity import Activity
-from libactivitypub.activity_stream import (
+from libactivitypub.activity_streams import (
     ACTIVITY_STREAMS_CONTEXT,
     post as activity_streams_post,
 )
