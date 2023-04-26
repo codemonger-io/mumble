@@ -12,9 +12,16 @@ You have to specify the following environment variable:
 import json
 import logging
 import os
-from typing import Any, TypedDict
+from typing import Any, Optional, TypedDict
 import boto3
-from libactivitypub.activity import Activity, ActivityVisitor, Follow, Undo
+from libactivitypub.activity import (
+    Accept,
+    Activity,
+    ActivityVisitor,
+    Follow,
+    ResponseActivity,
+    Undo,
+)
 from libmumble.exceptions import (
     BadConfigurationError,
     CorruptedDataError,
@@ -65,6 +72,10 @@ class ActivityTranslator(ActivityVisitor):
     """
     username: str
     """Username of the inbox owner."""
+    response: Optional[ResponseActivity]=None
+    """Optional response to the translated activity.
+    ``None`` if there is no response.
+    """
 
     def __init__(self, username: str):
         """Initializes with the username of the inbox owner.
@@ -74,19 +85,24 @@ class ActivityTranslator(ActivityVisitor):
     def visit_follow(self, follow: Follow):
         """Translates a "Follow" activity.
 
+        Responds with "Accept".
+
         :raises ValueError: if the object of the activity is not the inbox
         owner.
 
         :raises TooManyAccessError: if there are too many requests.
         """
-        LOGGER.debug('translating Follow: %s', follow._underlying)
+        LOGGER.debug('translating Follow: %s', follow.to_dict())
         USER_TABLE.add_user_follower(self.username, follow)
-        # TODO: respond with "Accept"
+        self.response = Accept.create(
+            actor_id=follow.followed_id,
+            activity=follow,
+        )
 
     def visit_undo(self, undo: Undo):
         """Translates an "Undo" activity.
         """
-        LOGGER.debug('translating Undo: %s', undo._underlying)
+        LOGGER.debug('translating Undo: %s', undo.to_dict())
 
 
 def load_activity(stored_activity: StoredActivity) -> Activity:
@@ -116,14 +132,19 @@ def load_activity(stored_activity: StoredActivity) -> Activity:
     return Activity.parse_object(json.loads(data))
 
 
-def translate_activity(activity: Activity, username: str):
+def translate_activity(
+    activity: Activity,
+    username: str,
+) -> Optional[ResponseActivity]:
     """Translates a given activity.
+
+    :returns: optional response activity.
 
     :raises ValueError: if the activity has an error.
     """
     visitor = ActivityTranslator(username)
     activity.visit(visitor)
-    # TODO: return a reaction
+    return visitor.response
 
 
 def lambda_handler(event, _context):
@@ -139,6 +160,18 @@ def lambda_handler(event, _context):
                 'key': '<object-key>'
             }
         }
+
+    Returns a ``dict`` similar to the following:
+
+    .. code-block:: python
+
+        {
+            'response': {
+                ...
+            }
+        }
+
+    ``response`` is optional response activity which may be "Accept".
 
     :raises BadConfigurationError: ``activity`` does not represents a stored
     activity, or if ``activity.bucket`` does not match ``OBJECTS_BUCKET_NAME``,
@@ -175,8 +208,14 @@ def lambda_handler(event, _context):
     except ValueError as exc:
         raise CorruptedDataError(f'{exc}') from exc
 
-    LOGGER.debug('translating activity: %s', activity._underlying)
+    LOGGER.debug('translating activity: %s', activity.to_dict())
     try:
-        translate_activity(activity, username)
+        response = translate_activity(activity, username)
     except ValueError as exc:
         raise CorruptedDataError(f'{exc}') from exc
+
+    if response is not None:
+        return {
+            'response': response.to_dict(),
+        }
+    return {}
