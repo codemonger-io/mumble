@@ -11,6 +11,7 @@ from .activity_stream import (
     DEFAULT_REQUEST_TIMEOUT,
     get as activity_stream_get,
 )
+from .inbox import Inbox
 from .mime_types import ACTIVITY_STREAM_MIME_TYPES
 from .objects import DictObject
 from .outbox import Outbox
@@ -143,6 +144,16 @@ class Actor(DictObject):
             return Actor(underlying)
         except AttributeError as exc:
             raise ValueError(f'no actor associated with "{account}"') from exc
+
+    @property
+    def inbox(self) -> Inbox:
+        """Inbox of the actor.
+
+        :raises AttributeError: if no inbox is provided.
+        """
+        if 'inbox' not in self._underlying:
+            raise AttributeError('no inbox is provided')
+        return Inbox(self._underlying['inbox'])
 
     @property
     def outbox(self) -> Outbox:
