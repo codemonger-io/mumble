@@ -3,7 +3,7 @@
 """Utilities.
 """
 
-from typing import Tuple
+from typing import Any, Tuple
 
 
 def parse_webfinger_id(account: str) -> Tuple[str, str]:
@@ -40,3 +40,15 @@ def parse_acct_uri(uri: str) -> Tuple[str, str]:
     if not uri.startswith(prefix):
         raise ValueError(f'"acct" URI must start with "{prefix}": {uri}')
     return parse_webfinger_id(uri[len(prefix):])
+
+
+def is_str_or_strs(value: Any) -> bool:
+    """Returns if a given value is ``str`` or a sequence of ``str``.
+    """
+    if isinstance(value, str):
+        return True
+    try:
+        len(value) # should be non-iterator
+        return all((isinstance(s, str) for s in value))
+    except TypeError:
+        return False
