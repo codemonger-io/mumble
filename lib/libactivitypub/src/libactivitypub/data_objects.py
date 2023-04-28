@@ -11,6 +11,9 @@ from .objects import DictObject
 LOGGER = logging.getLogger('libactivitypub.data_objects')
 LOGGER.setLevel(logging.DEBUG)
 
+COLLECTION_TYPES = ['Collection', 'OrderedCollection']
+"""Types representing a collection."""
+
 
 class Note(DictObject):
     """Wraps a "Note" object.
