@@ -7,7 +7,11 @@ from abc import ABC, abstractmethod
 import logging
 from typing import Any, Dict, Iterable, Optional, Union
 import requests
-from .activity_streams import get as activity_streams_get
+from .activity_streams import (
+    ACTIVITY_STREAMS_CONTEXT,
+    get as activity_streams_get,
+)
+from .data_objects import Note
 from .objects import (
     ACTOR_TYPES,
     APObject,
@@ -63,14 +67,6 @@ class Activity(DictObject):
         if obj_type is not None:
             raise ValueError(f'unsupported activity type: {obj_type}')
         raise ValueError('invalid object: type is missing')
-
-    @property
-    def id(self) -> str:
-        return self._underlying['id']
-
-    @property
-    def type(self) -> str:
-        return self._underlying['type']
 
     @property
     def actor_id(self) -> str:
@@ -219,6 +215,37 @@ class Create(MessageActivity):
         """
         if obj.get('type') != 'Create':
             raise ValueError(f'type must be "Create": {obj.get("type")}')
+        return Create(obj)
+
+    @staticmethod
+    def wrap_note(note: Note) -> 'Create':
+        """Wraps a given "Note" object.
+
+        Copies properties from ``note``:
+        * "to" (optional)
+        * "cc" (optional)
+        * "bcc" (optional)
+        * "published"
+        * "attributedTo" → "actor"
+
+        Sets a copy of ``note`` to "object".
+
+        Leaves "id" blank.
+
+        :raises AttributeError: if ``note`` does not have "attributedTo",
+        or if ``note`` does not have "published".
+        """
+        obj = {
+            '@context': ACTIVITY_STREAMS_CONTEXT,
+            'type': 'Create',
+            "actor": note.attributed_to,
+            "published": note.published,
+            "object": note.to_dict(with_context=False),
+        }
+        options = ['to', 'cc', 'bcc']
+        for option in options:
+            if hasattr(note, option):
+                obj[option] = getattr(note, option)
         return Create(obj)
 
     def visit(self, visitor: 'ActivityVisitor'):
