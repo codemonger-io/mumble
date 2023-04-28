@@ -50,6 +50,7 @@ export class CdkStack extends Stack {
       deploymentStage,
       lambdaDependencies,
       objectStore,
+      systemParameters,
       userTable,
     });
     const mumbleApi = new MumbleApi(this, 'MumbleApi', {
