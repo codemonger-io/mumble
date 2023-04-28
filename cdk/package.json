@@ -32,6 +32,7 @@
     "@types/uuid": "^9.0.1",
     "aws-cdk-lib": "2.73.0",
     "cdk-cloudfront-function-bundle": "github:codemonger-io/cdk-cloudfront-function-bundle#v0.1.0",
+    "cdk-ghost-string-parameter": "github:codemonger-io/cdk-ghost-string-parameter#v0.1.0",
     "cdk-rest-api-with-spec": "github:codemonger-io/cdk-rest-api-with-spec#v0.2.1",
     "cdk2-python-library-layer": "github:kikuomax/cdk-python-library-layer#v0.2.1-v2",
     "constructs": "^10.0.0",
