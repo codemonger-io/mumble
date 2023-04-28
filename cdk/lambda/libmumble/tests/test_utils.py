@@ -4,7 +4,11 @@
 """
 
 from datetime import datetime, timezone
-from libmumble.utils import format_yyyymmdd_hhmmss_ssssss, to_urlsafe_base64
+from libmumble.utils import (
+    format_yyyymmdd_hhmmss,
+    format_yyyymmdd_hhmmss_ssssss,
+    to_urlsafe_base64,
+)
 import pytest
 import pytz
 
@@ -52,3 +56,26 @@ def test_format_yyyymmdd_hhmmss_ssssss_with_naive():
     time = datetime(2023, 4, 24, 23, 57, 59, 2099)
     with pytest.raises(ValueError):
         format_yyyymmdd_hhmmss_ssssss(time)
+
+
+def test_format_yyyymmdd_hhmmss():
+    """Tests ``format_yyyymmdd_hhmmss``.
+    """
+    time = datetime(2023, 4, 27, 17, 57, 10, tzinfo=timezone.utc)
+    assert format_yyyymmdd_hhmmss(time) == '2023-04-27T17:57:10Z'
+
+
+def test_format_yyyymmdd_hhmmss_with_jst():
+    """Tests ``format_yyyymmdd_hhmmss`` with a datetime in JST.
+    """
+    jst = pytz.timezone('Asia/Tokyo')
+    time = jst.localize(datetime(2023, 4, 28, 2, 59, 1))
+    assert format_yyyymmdd_hhmmss(time) == '2023-04-27T17:59:01Z'
+
+
+def test_format_yyyymmdd_hhmmss_with_naive():
+    """Tests ``format_yyyymmdd_hhmmss`` with a naive datetime.
+    """
+    time = datetime(2023, 4, 27, 17, 57, 10)
+    with pytest.raises(ValueError):
+        format_yyyymmdd_hhmmss(time)
