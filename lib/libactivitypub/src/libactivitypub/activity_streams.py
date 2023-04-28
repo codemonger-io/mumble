@@ -19,6 +19,9 @@ LOGGER.setLevel(logging.DEBUG)
 ACTIVITY_STREAMS_CONTEXT = 'https://www.w3.org/ns/activitystreams'
 """JSON-LD context for ActivityStream."""
 
+ACTIVITY_STREAMS_PUBLIC_ADDRESS = 'https://www.w3.org/ns/activitystreams#Public'
+"""Public address for public posts."""
+
 DEFAULT_REQUEST_TIMEOUT = 30.0
 """Default timeout of requests."""
 
