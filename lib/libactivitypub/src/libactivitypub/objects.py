@@ -5,7 +5,7 @@
 
 from abc import ABC, abstractmethod
 import logging
-from typing import Any, Dict, Iterable, Optional, Union
+from typing import Any, Dict, Iterable, Optional, TypeVar, Type, Union
 from uuid6 import uuid7
 from .activity_streams import get as activity_streams_get
 
@@ -53,6 +53,9 @@ class APObject(ABC):
         """
 
 
+T = TypeVar('T', bound='DictObject')
+
+
 class DictObject(APObject):
     """Object that wraps a ``dict``.
     """
@@ -79,15 +82,33 @@ class DictObject(APObject):
             )
         self._underlying = underlying
 
+    def set_jsonld_context(self, context: str):
+        """Sets the JSON+LD context ("@context").
+        """
+        self._underlying['@context'] = context
+
     @property
     def id(self) -> str:
         if 'id' not in self._underlying:
             raise AttributeError('id is not assigned')
         return self._underlying['id']
 
+    @id.setter
+    def id(self, value: str):
+        self._underlying['id'] = value
+
     @property
     def type(self) -> str:
         return self._underlying['type']
+
+    def cast(self, cls: Type[T]) -> T:
+        """Casts this object as a given subclass.
+
+        :raises ValueError: if this object cannot be represented as ``cls``.
+
+        :raises TypeError: if this object incompatible with ``cls``.
+        """
+        return cls(self._underlying)
 
     def to_dict(self, with_context=True) -> Dict[str, Any]:
         if with_context or '@context' not in self._underlying:
