@@ -9,7 +9,8 @@
     "watch": "tsc -w",
     "test": "jest",
     "cdk": "cdk",
-    "generate-user-key-pair": "ts-node scripts/generate-user-key-pair.ts"
+    "generate-user-key-pair": "ts-node scripts/generate-user-key-pair.ts",
+    "setup-domain-name": "ts-node scripts/setup-domain-name.ts"
   },
   "devDependencies": {
     "@babel/core": "^7.21.4",
