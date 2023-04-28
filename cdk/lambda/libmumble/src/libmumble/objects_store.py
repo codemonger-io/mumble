@@ -3,9 +3,12 @@
 """Provides utilities around the objects store.
 """
 
+import json
 import logging
 import re
 from typing import Any, Dict, TypedDict
+from libactivitypub.objects import DictObject
+from .exceptions import NotFoundError
 
 
 LOGGER = logging.getLogger('libmumble.objects_store')
@@ -61,3 +64,30 @@ def get_username_from_staging_outbox_key(key: str) -> str:
     :raises ValueError: if ``key`` is not in the staging outbox.
     """
     return get_username_from_key('staging', key)
+
+
+def load_object(s3_client, object_key: ObjectKey) -> DictObject:
+    """Loads a specified object from the S3 bucket as an ActivityStreams
+    object.
+
+    :params boto3.client('s3') s3_client: S3 client to access the object.
+
+    :raises NotFoundError: if the object is not found.
+
+    :raises ValueError: if the loaded object is not JSON-formatted.
+
+    :raises TypeError: if the loaded object is incompatible with
+    ActivityStreams object.
+    """
+    try:
+        res = s3_client.get_object(
+            Bucket=object_key['bucket'],
+            Key=object_key['key'],
+        )
+    except s3_client.exceptions.NoSuchKey as exc:
+        raise NotFoundError(f'no such object: {object_key}') from exc
+    body = res['Body']
+    data = body.read()
+    body.close()
+    obj = json.loads(data.decode('utf-8'))
+    return DictObject(obj)
