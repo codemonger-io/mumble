@@ -53,6 +53,11 @@ export class Dispatcher extends Construct {
    * Implements a state in a workflow.
    */
   private planActivityDeliveryLambda: lambda.IFunction;
+  /**
+   * Lambda function that delivers an activity to a single recipient.
+   * Implements a state in a workflow.
+   */
+  private deliverActivityLambda: lambda.IFunction;
 
   constructor(scope: Construct, id: string, readonly props: Props) {
     super(scope, id);
@@ -137,6 +142,32 @@ export class Dispatcher extends Construct {
     systemParameters.domainNameParameter.grantRead(
       this.planActivityDeliveryLambda,
     );
+    // - delivers an activity to a single recipient
+    this.deliverActivityLambda = new PythonFunction(
+      this,
+      'DeliverActivityLambda',
+      {
+        description: 'Delivers an activity to a single recipient',
+        runtime: lambda.Runtime.PYTHON_3_8,
+        architecture: lambda.Architecture.ARM_64,
+        entry: path.join('lambda', 'states', 'deliver_activity'),
+        index: 'index.py',
+        handler: 'lambda_handler',
+        layers: [libActivityPub, libCommons, libMumble],
+        environment: {
+          OBJECTS_BUCKET_NAME: objectStore.objectsBucket.bucketName,
+          USER_TABLE_NAME: userTable.userTable.tableName,
+          DOMAIN_NAME_PARAMETER_PATH:
+            systemParameters.domainNameParameter.parameterName,
+        },
+        memorySize: 256,
+        timeout: Duration.seconds(30),
+      },
+    );
+    objectStore.grantPutIntoOutbox(this.deliverActivityLambda);
+    userTable.userTable.grantReadData(this.deliverActivityLambda);
+    userTable.grantReadPrivateKeys(this.deliverActivityLambda);
+    systemParameters.domainNameParameter.grantRead(this.deliverActivityLambda);
 
     // workflows
     // - dispatches a received activity
@@ -242,10 +273,35 @@ export class Dispatcher extends Construct {
         taskTimeout: stepfunctions.Timeout.duration(Duration.minutes(15)),
       },
     );
+    // - delivers the activity to each recipient
+    const forEachRecipient = new stepfunctions.Map(
+      this,
+      `ForEachRecipient_${workflowId}`,
+      {
+        comment: 'For each recipient',
+        maxConcurrency: 10,
+        itemsPath: stepfunctions.JsonPath.stringAt('$.recipients'),
+        parameters: {
+          'activity.$': '$.activity',
+          'recipient.$': '$$.Map.Item.Value',
+        },
+      },
+    );
+    const invokeDeliverActivity = new sfn_tasks.LambdaInvoke(
+      this,
+      `DeliverActivity_${workflowId}`,
+      {
+        lambdaFunction: this.deliverActivityLambda,
+        comment: 'Delivers an activity to a single recipient',
+        payloadResponseOnly: true,
+        taskTimeout: stepfunctions.Timeout.duration(Duration.seconds(30)),
+      },
+    );
+    forEachRecipient.iterator(invokeDeliverActivity);
 
     // builds the state machine
     return new stepfunctions.StateMachine(this, workflowId, {
-      definition: invokePlanActivityDelivery,
+      definition: invokePlanActivityDelivery.next(forEachRecipient),
       timeout: Duration.hours(1),
     });
   }
