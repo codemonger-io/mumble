@@ -75,6 +75,18 @@ class Activity(DictObject):
         """
         return Reference(self._underlying['actor']).id
 
+    def is_deliverable(self) -> bool:
+        """Returns if this activity has minimum properties that make it
+        deliverable.
+
+        An activity is deliverable if it has all of the following properties:
+        * "@context"
+        * "id"
+        * "type"
+        """
+        required_props = ['@context', 'id', 'type']
+        return all((p in self._underlying for p in required_props))
+
     @abstractmethod
     def visit(self, visitor: 'ActivityVisitor'):
         """Visits this activity.
