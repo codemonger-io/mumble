@@ -10,6 +10,8 @@ import { Construct } from 'constructs';
 
 /** Paht prefix of the inbox. */
 export const INBOX_PREFIX = 'inbox/';
+/** Path prefix of the outbox. */
+export const OUTBOX_PREFIX = 'outbox/';
 /**
  * Path prefix of the staging outbox.
  *
@@ -22,6 +24,8 @@ export const INBOX_PREFIX = 'inbox/';
  * sending it; e.g., assigning an ID, timestamping.
  */
 export const STAGING_OUTBOX_PREFIX = 'staging/';
+/** Path prefix of the objects folder. */
+export const OBJECTS_FOLDER_PREFIX = 'objects/';
 
 /**
  * CDK construct that provisions the S3 bucket for objects.
@@ -152,8 +156,18 @@ export class ObjectStore extends Construct {
     return this.objectsBucket.grantRead(grantee, INBOX_PREFIX + '*');
   }
 
+  /** Grants a given principal "Put" access to the outbox. */
+  grantPutIntoOutbox(grantee: iam.IGrantable): iam.Grant {
+    return this.objectsBucket.grantPut(grantee, OUTBOX_PREFIX + '*');
+  }
+
   /** Grants a given principal "Get" access from the staging outbox. */
   grantGetFromStagingOutbox(grantee: iam.IGrantable): iam.Grant {
     return this.objectsBucket.grantRead(grantee, STAGING_OUTBOX_PREFIX + '*');
+  }
+
+  /** Grants a given principal "Put" access to the objects folder. */
+  grantPutIntoObjectsFolder(grantee: iam.IGrantable): iam.Grant {
+    return this.objectsBucket.grantPut(grantee, OBJECTS_FOLDER_PREFIX + '*');
   }
 }
