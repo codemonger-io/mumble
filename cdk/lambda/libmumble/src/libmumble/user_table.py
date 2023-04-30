@@ -11,7 +11,11 @@ from urllib.parse import unquote, urlparse
 from boto3.dynamodb.conditions import Attr
 from libactivitypub.activity import Follow
 from libactivitypub.actor import PublicKey
-from .exceptions import CorruptedDataError, TooManyAccessError
+from .exceptions import (
+    BadConfigurationError,
+    CorruptedDataError,
+    TooManyAccessError,
+)
 from .utils import current_yyyymmdd_hhmmss_ssssss
 
 
@@ -126,10 +130,43 @@ class User: # pylint: disable=too-many-instance-attributes
         """Public key information of the user.
         """
         return {
-            'id': f'{self.id}#main-key',
+            'id': self.key_id,
             'owner': self.id,
             'publicKeyPem': self.public_key_pem,
         }
+
+    @property
+    def key_id(self) -> str:
+        """Key pair ID of the user.
+        """
+        return f'{self.id}#main-key'
+
+    def get_private_key(self, ssm) -> str:
+        """Obtains the private key of this user from Parameter Store on AWS
+        Systems Manager.
+
+        :param boto3.client('ssm') ssm: AWS Systems Manager client to access
+        Parameter Store.
+
+        :returns: PEM representation of the private key.
+
+        :raises BadConfigurationError: if the private key does not exist in
+        Parameter Store.
+        """
+        try:
+            res = ssm.get_parameter(
+                Name=self.private_key_path,
+                WithDecryption=True,
+            )
+        except (
+            ssm.exceptions.InvalidKeyId,
+            ssm.exceptions.ParameterNotFound,
+        ) as exc:
+            raise BadConfigurationError(
+                f'no private key: {self.private_key_path}',
+            ) from exc
+        return res['Parameter']['Value']
+
 
 
 class UserTable:
