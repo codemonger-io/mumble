@@ -70,7 +70,7 @@ def load_object(s3_client, object_key: ObjectKey) -> DictObject:
     """Loads a specified object from the S3 bucket as an ActivityStreams
     object.
 
-    :params boto3.client('s3') s3_client: S3 client to access the object.
+    :param boto3.client('s3') s3_client: S3 client to access the object.
 
     :raises NotFoundError: if the object is not found.
 
@@ -91,3 +91,16 @@ def load_object(s3_client, object_key: ObjectKey) -> DictObject:
     body.close()
     obj = json.loads(data.decode('utf-8'))
     return DictObject(obj)
+
+
+def save_object(s3_client, object_key: ObjectKey, obj: DictObject):
+    """Saves a given ActivityStreams object in the S3 bucket.
+
+    :param boto3.client('s3') s3_client: S3 client to access the bucket.
+    """
+    res = s3_client.put_object(
+        Bucket=object_key['bucket'],
+        Key=object_key['key'],
+        Body=json.dumps(obj.to_dict()).encode('utf-8')
+    )
+    LOGGER.debug('saved object: %s', res)
