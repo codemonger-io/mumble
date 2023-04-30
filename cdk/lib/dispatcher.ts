@@ -133,6 +133,7 @@ export class Dispatcher extends Construct {
       },
     );
     objectStore.grantGetFromStagingOutbox(this.planActivityDeliveryLambda);
+    objectStore.grantPutIntoObjectsFolder(this.planActivityDeliveryLambda);
     systemParameters.domainNameParameter.grantRead(
       this.planActivityDeliveryLambda,
     );

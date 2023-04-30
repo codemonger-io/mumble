@@ -28,6 +28,7 @@ from libmumble.objects_store import (
     dict_as_object_key,
     get_username_from_staging_outbox_key,
     load_object,
+    save_object,
 )
 from libmumble.utils import current_yyyymmdd_hhmmss
 
@@ -39,6 +40,20 @@ OBJECTS_BUCKET_NAME = os.environ['OBJECTS_BUCKET_NAME']
 
 # caching domain name should not harm
 DOMAIN_NAME = get_domain_name(boto3.client('ssm'))
+
+
+def save_post(note: Note, username: str, post_id: str):
+    """Saves a given note in the post folder of a specified user.
+    """
+    LOGGER.debug('saving post: %s', note.id)
+    save_object(
+        boto3.client('s3'),
+        {
+            'bucket': OBJECTS_BUCKET_NAME,
+            'key': f'objects/users/{username}/posts/{post_id}',
+        },
+        note,
+    )
 
 
 def translate_object(obj: DictObject, username: str) -> Activity:
@@ -63,13 +78,15 @@ def translate_note(note: Note, username: str) -> Create:
     * "attributedTo"
     * "published"
     """
-    unique_id = generate_id()
+    post_id = generate_id()
     note.set_jsonld_context(ACTIVITY_STREAMS_CONTEXT)
-    note.id = f'https://{DOMAIN_NAME}/users/{username}/posts/{unique_id}'
+    note.id = f'https://{DOMAIN_NAME}/users/{username}/posts/{post_id}'
     note.attributed_to = f'https://{DOMAIN_NAME}/users/{username}'
     note.published = current_yyyymmdd_hhmmss()
+    save_post(note, username, post_id)
+    activity_id = generate_id()
     create = Create.wrap_note(note)
-    create.id = f'https://{DOMAIN_NAME}/users/{username}/activities/{unique_id}'
+    create.id = f'https://{DOMAIN_NAME}/users/{username}/activities/{activity_id}'
     return create
 
 
