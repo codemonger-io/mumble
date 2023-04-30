@@ -3,7 +3,7 @@
 """Stages a response activity.
 
 You have to specify the following environment variable:
-* ``USER_TABLE_NAME``
+* ``USER_TABLE_NAME``: name of the DynamoDB table that stores user information.
 """
 
 import json
