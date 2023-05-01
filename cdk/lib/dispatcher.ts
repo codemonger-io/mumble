@@ -144,6 +144,7 @@ export class Dispatcher extends Construct {
         layers: [libActivityPub, libCommons, libMumble],
         environment: {
           OBJECTS_BUCKET_NAME: objectStore.objectsBucket.bucketName,
+          USER_TABLE_NAME: userTable.userTable.tableName,
           DOMAIN_NAME_PARAMETER_PATH:
             systemParameters.domainNameParameter.parameterName,
         },
@@ -151,8 +152,8 @@ export class Dispatcher extends Construct {
         timeout: Duration.minutes(15),
       },
     );
-    objectStore.grantGetFromStagingOutbox(this.planActivityDeliveryLambda);
-    objectStore.grantPutIntoObjectsFolder(this.planActivityDeliveryLambda);
+    userTable.userTable.grantReadData(this.planActivityDeliveryLambda);
+    objectStore.grantGetFromOutbox(this.planActivityDeliveryLambda);
     systemParameters.domainNameParameter.grantRead(
       this.planActivityDeliveryLambda,
     );
@@ -178,7 +179,7 @@ export class Dispatcher extends Construct {
         timeout: Duration.seconds(30),
       },
     );
-    objectStore.grantPutIntoOutbox(this.deliverActivityLambda);
+    objectStore.grantGetFromOutbox(this.deliverActivityLambda);
     userTable.userTable.grantReadData(this.deliverActivityLambda);
     userTable.grantReadPrivateKeys(this.deliverActivityLambda);
     systemParameters.domainNameParameter.grantRead(this.deliverActivityLambda);
@@ -301,6 +302,15 @@ export class Dispatcher extends Construct {
   }
 
   // Creates a workflow that delivers a staged activity.
+  //
+  // The workflow supposes the input is like:
+  //
+  // {
+  //   activity: {
+  //     bucket: '<bucket-name>',
+  //     key: '<object-key>'
+  //   }
+  // }
   private createDeliverStagedActivityWorkflow(): stepfunctions.IStateMachine {
     const { deploymentStage } = this.props;
     const workflowId = `DeliverStagedActivity_${deploymentStage}`;
@@ -326,7 +336,7 @@ export class Dispatcher extends Construct {
         maxConcurrency: 10,
         itemsPath: stepfunctions.JsonPath.stringAt('$.recipients'),
         parameters: {
-          'activity.$': '$.activity',
+          'activity.$': '$$.Execution.Input.activity',
           'recipient.$': '$$.Map.Item.Value',
         },
       },

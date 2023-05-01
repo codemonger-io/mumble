@@ -15,7 +15,6 @@ import os
 import re
 from urllib.parse import urlparse
 import boto3
-from libactivitypub.activity import Activity
 from libactivitypub.activity_streams import post as activity_streams_post
 from libmumble.exceptions import (
     BadConfigurationError,
@@ -23,7 +22,7 @@ from libmumble.exceptions import (
     NotFoundError,
     TransientError,
 )
-from libmumble.objects_store import save_object
+from libmumble.objects_store import dict_as_object_key, load_activity
 from libmumble.parameters import get_domain_name
 from libmumble.user_table import UserTable, parse_user_id
 import requests
@@ -41,18 +40,6 @@ USER_TABLE = UserTable(boto3.resource('dynamodb').Table(USER_TABLE_NAME))
 DOMAIN_NAME = get_domain_name(boto3.client('ssm'))
 
 
-def get_object_id_from_activity_id(activity_id: str) -> str:
-    """Extracts object ID (unique part) from a given activity ID.
-
-    :raises ValueError: if ``activity_id`` is malformed.
-    """
-    parsed_uri = urlparse(activity_id)
-    match = re.match(r'^\/users\/[^/]+\/activities\/([^/]+)', parsed_uri.path)
-    if match is None:
-        raise ValueError(f'malformed activity ID: {activity_id}')
-    return match.group(1)
-
-
 def lambda_handler(event, _context):
     """Runs on AWS Lambda.
 
@@ -62,30 +49,39 @@ def lambda_handler(event, _context):
 
         {
             'activity': {
-                '@context': 'https://www.w3.org/ns/activitystreams',
-                'id': '<activity-id>',
-                'type': '<activity-type>'
+                'bucket': '<bucket-name>',
+                'key': '<object-key>'
             },
             'recipient': '<inbox-uri>'
         }
 
-    :raises BadConfigurationError: if the actor does not belong to the domain
-    of this service.
-
-    :raises NotFoundError: if the actor (user) does not exist.
+    :raises BadConfigurationError: if a wrong objects bucket is given,
+    or if the actor does not belong to the domain of this service.
 
     :raises CorruptedDataError: if the activity does not have "@context",
     "id", or "type".
 
-    :raises TransientError: if an http request times out,
-    or returns 429 status code.
+    :raises NotFoundError: if the actor (user) does not exist.
+
+    :raises TransientError: if an HTTP request fails with a transient error;
+    e.g., timeout, 429 status code.
+
+    :raises requests.HTTPError: if an HTTP request fails with a non-transient
+    error.
 
     :raises ValueError: if data is invalid.
 
     :raises TypeError: if data has a type error.
     """
     LOGGER.debug('delivering activity: %s', event)
-    activity = Activity.parse_object(event['activity'])
+    object_key = dict_as_object_key(event['activity'])
+    if object_key['bucket'] != OBJECTS_BUCKET_NAME:
+        raise BadConfigurationError(
+            'objects bucket mismatch:'
+            f' {OBJECTS_BUCKET_NAME} != {object_key["bucket"]}',
+        )
+    LOGGER.debug('loading activity: %s', object_key)
+    activity = load_activity(boto3.client('s3'), object_key)
     if not activity.is_deliverable():
         raise CorruptedDataError('activity is not ready to be delivered')
     recipient = event['recipient']
@@ -94,21 +90,12 @@ def lambda_handler(event, _context):
         raise BadConfigurationError(
             f'actor domain mismatch: {domain_name} != {DOMAIN_NAME}',
         )
-    object_id = get_object_id_from_activity_id(activity.id)
     LOGGER.debug('looking up user: %s@%s', username, domain_name)
     user = USER_TABLE.find_user_by_username(username, domain_name)
     if user is None:
         raise NotFoundError(f'no such user: {username}')
-    LOGGER.debug('saving activity in outbox')
-    save_object(
-        boto3.client('s3'),
-        {
-            'bucket': OBJECTS_BUCKET_NAME,
-            'key': f'outbox/users/{username}/{object_id}.json',
-        },
-        activity,
-    )
     try:
+        LOGGER.debug('sending activity')
         res = activity_streams_post(
             recipient,
             body=json.dumps(activity.to_dict()).encode('utf-8'),

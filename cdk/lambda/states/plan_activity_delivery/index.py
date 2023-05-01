@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 
-"""Plans delivery of a staged activity.
+"""Plans delivery of a staged activity in the outbox.
 
 You have to specify the following environment variable:
 * ``OBJECTS_BUCKET_NAME``: name of the S3 bucket that stores objects to be
   delivered.
+* ``USER_TABLE_NAME``: name of the DynamoDB table that stores user information.
 * ``DOMAIN_NAME_PARAMETER_PATH``: path to the parameter storing the domain name
   in Parameter Store on AWS Systems Manager.
 """
@@ -14,23 +15,24 @@ import os
 from typing import Iterable, List, Set, Union
 from urllib.parse import urlparse
 import boto3
-from libactivitypub.activity import Activity, ActivityVisitor, Create
-from libactivitypub.activity_streams import (
-    ACTIVITY_STREAMS_CONTEXT,
-    ACTIVITY_STREAMS_PUBLIC_ADDRESS,
-)
+from libactivitypub.activity import Accept, Activity, ActivityVisitor, Create
+from libactivitypub.activity_streams import ACTIVITY_STREAMS_PUBLIC_ADDRESS
 from libactivitypub.actor import Actor
-from libactivitypub.data_objects import COLLECTION_TYPES, Note
-from libactivitypub.objects import DictObject, generate_id
+from libactivitypub.data_objects import COLLECTION_TYPES
+from libactivitypub.objects import DictObject
 from libmumble.parameters import get_domain_name
-from libmumble.exceptions import BadConfigurationError
+from libmumble.exceptions import (
+    BadConfigurationError,
+    NotFoundError,
+    TransientError,
+)
 from libmumble.objects_store import (
     dict_as_object_key,
-    get_username_from_staging_outbox_key,
-    load_object,
-    save_object,
+    get_username_from_outbox_key,
+    load_activity,
 )
-from libmumble.utils import current_yyyymmdd_hhmmss
+from libmumble.user_table import UserTable
+import requests
 
 
 LOGGER = logging.getLogger(__name__)
@@ -38,56 +40,11 @@ LOGGER.setLevel(logging.DEBUG)
 
 OBJECTS_BUCKET_NAME = os.environ['OBJECTS_BUCKET_NAME']
 
+USER_TABLE_NAME = os.environ['USER_TABLE_NAME']
+USER_TABLE = UserTable(boto3.resource('dynamodb').Table(USER_TABLE_NAME))
+
 # caching domain name should not harm
 DOMAIN_NAME = get_domain_name(boto3.client('ssm'))
-
-
-def save_post(note: Note, username: str, post_id: str):
-    """Saves a given note in the post folder of a specified user.
-    """
-    LOGGER.debug('saving post: %s', note.id)
-    save_object(
-        boto3.client('s3'),
-        {
-            'bucket': OBJECTS_BUCKET_NAME,
-            'key': f'objects/users/{username}/posts/{post_id}',
-        },
-        note,
-    )
-
-
-def translate_object(obj: DictObject, username: str) -> Activity:
-    """Translates a given object and returns an activity to be delivered.
-
-    :raises ValueError: if ``obj`` cannot be delivered, or if ``obj`` has
-    invalid value.
-
-    :raises TypeError: if ``obj`` has a type error.
-    """
-    if obj.type == 'Note':
-        return translate_note(obj.cast(Note), username)
-    raise ValueError(f'undeliverable object: {obj.type}')
-
-
-def translate_note(note: Note, username: str) -> Create:
-    """Translates a given "Note" object and returns a "Create" activity.
-
-    Adds the following properties to ``note``:
-    * "@context"
-    * "id"
-    * "attributedTo"
-    * "published"
-    """
-    post_id = generate_id()
-    note.set_jsonld_context(ACTIVITY_STREAMS_CONTEXT)
-    note.id = f'https://{DOMAIN_NAME}/users/{username}/posts/{post_id}'
-    note.attributed_to = f'https://{DOMAIN_NAME}/users/{username}'
-    note.published = current_yyyymmdd_hhmmss()
-    save_post(note, username, post_id)
-    activity_id = generate_id()
-    create = Create.wrap_note(note)
-    create.id = f'https://{DOMAIN_NAME}/users/{username}/activities/{activity_id}'
-    return create
 
 
 class RecipientCollector(ActivityVisitor):
@@ -102,17 +59,42 @@ class RecipientCollector(ActivityVisitor):
 
     def visit_create(self, create: Create):
         """Expands recipients of a "Create" activity.
+
+        :raises requests.HTTPError: if an http request to other server fails.
+
+        :raises requests.Timeout if an http request to other server times out.:
         """
         self._excluded.add(create.actor_id) # excludes the sender
         if hasattr(create, 'to'):
+            LOGGER.debug('resolving "to"')
             self.resolve_inboxes(create.to)
         if hasattr(create, 'cc'):
+            LOGGER.debug('resolving "cc"')
             self.resolve_inboxes(create.cc)
         if hasattr(create, 'bcc'):
+            LOGGER.debug('resolving "bcc"')
             self.resolve_inboxes(create.bcc)
+
+    def visit_accept(self, accept: Accept):
+        """Expands recipients of an "Accept" activity.
+
+        :raises requests.HTTPError: if an http request to other server fails.
+
+        :raises requests.Timeout: if an http request to other server times out.
+
+        :raises TypeError: if the accept object is not an activity.
+        """
+        self._excluded.add(accept.actor_id) # excludes the sender
+        LOGGER.debug('resolving accepted object')
+        accepted = accept.resolve_object_activity()
+        self.resolve_inboxes_of_recipient(accepted.actor_id)
 
     def resolve_inboxes(self, recipients: Union[str, Iterable[str]]):
         """Resolves inbox URIs of given recipients.
+
+        :raises requests.HTTPError: if an http request to other server fails.
+
+        :raises requests.Timeout: if an http request to other server times out.
         """
         if isinstance(recipients, str):
             self.resolve_inboxes_of_recipient(recipients)
@@ -122,6 +104,10 @@ class RecipientCollector(ActivityVisitor):
 
     def resolve_inboxes_of_recipient(self, recipient: str):
         """Resolves inbox URIs of a single recipients.
+
+        :raises requests.HTTPError: if an http request to other server fails.
+
+        :raises requests.Timeout: if an http request to other server times out.
         """
         if recipient in self._excluded:
             return
@@ -156,10 +142,23 @@ def expand_recipients(activity: Activity) -> List[str]:
     """Expands recipients of a given activity.
 
     :returns: list of inbox URIs of the recipients of ``activity``.
+
+    :raises TransientError: if an http request to other server fails with
+    a transient error; e.g., timeout, 429 status code.
+
+    :raises requests.HTTPError: if an http request to other server fails with
+    a non-transient error.
     """
-    visitor = RecipientCollector()
-    activity.visit(visitor)
-    return list(visitor.recipients)
+    try:
+        visitor = RecipientCollector()
+        activity.visit(visitor)
+        return list(visitor.recipients)
+    except requests.HTTPError as exc:
+        if exc.response.status_code == 429:
+            raise TransientError(f'too many HTTP requests: {exc}') from exc
+        raise
+    except requests.Timeout as exc:
+        raise TransientError(f'HTTP request timed out: {exc}') from exc
 
 
 def lambda_handler(event, _context):
@@ -181,7 +180,6 @@ def lambda_handler(event, _context):
     .. code-block:: python
 
         {
-            'activity': {},
             'recipients': [
                 '<inbox-uri>',
             ]
@@ -190,6 +188,14 @@ def lambda_handler(event, _context):
     :raises BadConfigurationError: if ``activity.bucket`` does not match the
     configured objects bucket, if ``activity.key`` is not in the staging
     outbox.
+
+    :raises NotFoundError: if the owner of the activity object is not found.
+
+    :raises TransientError: if an http request to other server fails with
+    a transient error; e.g., timeout, 429 status code.
+
+    :raises requests.HTTPError: if an http request to other server fails with
+    a non-transient error.
 
     :raises ValueError: if the loaded data is invalid.
 
@@ -203,16 +209,17 @@ def lambda_handler(event, _context):
             f' {OBJECTS_BUCKET_NAME} vs {object_key["bucket"]}',
         )
     try:
-        username = get_username_from_staging_outbox_key(object_key['key'])
+        username = get_username_from_outbox_key(object_key['key'])
     except ValueError as exc:
         raise BadConfigurationError(f'{exc}') from exc
+    LOGGER.debug('looking up user: %s', username)
+    user = USER_TABLE.find_user_by_username(username, DOMAIN_NAME)
+    if user is None:
+        raise NotFoundError(f'no such user: {username}')
     LOGGER.debug('loading object: %s', object_key)
-    obj = load_object(boto3.client('s3'), object_key)
-    LOGGER.debug('translating object: %s', obj.to_dict())
-    activity = translate_object(obj, username)
+    activity = load_activity(boto3.client('s3'), object_key)
     LOGGER.debug('expanding recipients: %s', activity.to_dict())
     recipients = expand_recipients(activity)
     return {
-        'activity': activity.to_dict(),
         'recipients': recipients,
     }
