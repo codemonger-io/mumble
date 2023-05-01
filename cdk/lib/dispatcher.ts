@@ -204,6 +204,10 @@ export class Dispatcher extends Construct {
     systemParameters.domainNameParameter.grantRead(this.deliverActivityLambda);
 
     // workflows
+    const s3ObjectInput = {
+      bucket: events.EventField.fromPath('$.detail.bucket.name'),
+      key: events.EventField.fromPath('$.detail.object.key'),
+    };
     // - dispatches a received activity
     const dispatchReceivedActivityWorkflow =
       this.createDispatchReceivedActivityWorkflow();
@@ -211,30 +215,37 @@ export class Dispatcher extends Construct {
       dispatchReceivedActivityWorkflow,
       {
         input: events.RuleTargetInput.fromObject({
-          activity: {
-            bucket: events.EventField.fromPath('$.detail.bucket.name'),
-            key: events.EventField.fromPath('$.detail.object.key'),
-          },
+          activity: s3ObjectInput,
         }),
         deadLetterQueue,
       },
     ));
-    // - delivers a staged activity
-    const deliverStagedActivityWorkflow =
-      this.createDeliverStagedActivityWorkflow();
+    // - translate an outbound object in the staging outbox
+    const translateOutboundObjectWorkflow =
+      this.createTranslateOutboundObjectWorkflow();
     objectStore.stagingOutboxObjectCreatedRule.addTarget(
       new targets.SfnStateMachine(
-        deliverStagedActivityWorkflow,
+        translateOutboundObjectWorkflow,
         {
           input: events.RuleTargetInput.fromObject({
-            activity: {
-              bucket: events.EventField.fromPath('$.detail.bucket.name'),
-              key: events.EventField.fromPath('$.detail.object.key'),
-            },
+            'object': s3ObjectInput,
           }),
+          deadLetterQueue,
         },
       ),
     );
+    // - delivers a staged activity in the outbox
+    const deliverStagedActivityWorkflow =
+      this.createDeliverStagedActivityWorkflow();
+    objectStore.outboxObjectCreatedRule.addTarget(new targets.SfnStateMachine(
+      deliverStagedActivityWorkflow,
+      {
+        input: events.RuleTargetInput.fromObject({
+          activity: s3ObjectInput,
+        }),
+        deadLetterQueue,
+      },
+    ));
   }
 
   // Creates a workflow that dispatches a received activity.
@@ -287,6 +298,42 @@ export class Dispatcher extends Construct {
     return new stepfunctions.StateMachine(this, workflowId, {
       definition: invokeTranslateActivity.next(ifResponseExists),
       timeout: Duration.minutes(30),
+    });
+  }
+
+  // Creates a workflow that stages an object in the staging folder.
+  //
+  // The workflow supposes the input is like:
+  //
+  // {
+  //   object: {
+  //     bucket: '<bucket-name>',
+  //     key: '<object-key>'
+  //   }
+  // }
+  private createTranslateOutboundObjectWorkflow():
+    stepfunctions.IStateMachine
+  {
+    const { deploymentStage } = this.props;
+    const workflowId = `TranslateOutboundObject_${deploymentStage}`;
+
+    // defines states
+    // - translate an outbound object in the staging outbox
+    const invokeTranslateOutboundObject = new sfn_tasks.LambdaInvoke(
+      this,
+      `TranslateOutboundObject_${workflowId}`,
+      {
+        lambdaFunction: this.translateOutboundObjectLambda,
+        comment: 'Invokes TranslateOutboundObjectLambda',
+        payloadResponseOnly: true,
+        taskTimeout: stepfunctions.Timeout.duration(Duration.seconds(30)),
+      },
+    );
+
+    // builds the state machine
+    return new stepfunctions.StateMachine(this, workflowId, {
+      definition: invokeTranslateOutboundObject,
+      timeout: Duration.minutes(5),
     });
   }
 
