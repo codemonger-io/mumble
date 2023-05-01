@@ -39,15 +39,10 @@ export interface Props {
  */
 export class Dispatcher extends Construct {
   /**
-   * Lambda function that translates an activity.
+   * Lambda function that translates an activity receinved in the inbox.
    * Implements a state in a workflow.
    */
   private translateActivityLambda: lambda.IFunction;
-  /**
-   * Lambda function that stages a response activity.
-   * Implements a state in a workflow.
-   */
-  private stageResponseLambda: lambda.IFunction;
   /**
    * Lambda function that translates an outbound object in the staging outbox.
    * Implements a state in a workflow.
@@ -78,12 +73,12 @@ export class Dispatcher extends Construct {
     const { libActivityPub, libCommons, libMumble } = lambdaDependencies;
 
     // state Lambda functions
-    // - translates an activity
+    // - translates an activity received in the inbox
     this.translateActivityLambda = new PythonFunction(
       this,
       'TranslateActivityLambda',
       {
-        description: 'Translates an activity',
+        description: 'Translates an activity received in the inbox',
         runtime: lambda.Runtime.PYTHON_3_8,
         architecture: lambda.Architecture.ARM_64,
         entry: path.join('lambda', 'states', 'translate_activity'),
@@ -93,34 +88,19 @@ export class Dispatcher extends Construct {
         environment: {
           OBJECTS_BUCKET_NAME: objectStore.objectsBucket.bucketName,
           USER_TABLE_NAME: userTable.userTable.tableName,
+          DOMAIN_NAME_PARAMETER_PATH:
+            systemParameters.domainNameParameter.parameterName,
         },
         memorySize: 256,
         timeout: Duration.seconds(30),
       },
     );
     objectStore.grantGetFromInbox(this.translateActivityLambda);
+    objectStore.grantPutIntoStagingOutbox(this.translateActivityLambda);
     userTable.userTable.grantReadWriteData(this.translateActivityLambda);
-    // - stages a response activity
-    this.stageResponseLambda = new PythonFunction(
-      this,
-      `StageResponseLambda`,
-      {
-        description: 'Stages a response activity',
-        runtime: lambda.Runtime.PYTHON_3_8,
-        architecture: lambda.Architecture.ARM_64,
-        entry: path.join('lambda', 'states', 'stage_response'),
-        index: 'index.py',
-        handler: 'lambda_handler',
-        layers: [libActivityPub, libCommons, libMumble],
-        environment: {
-          USER_TABLE_NAME: userTable.userTable.tableName,
-        },
-        memorySize: 256,
-        timeout: Duration.seconds(30),
-      },
+    systemParameters.domainNameParameter.grantRead(
+      this.translateActivityLambda,
     );
-    userTable.userTable.grantReadWriteData(this.stageResponseLambda);
-    userTable.grantReadPrivateKeys(this.stageResponseLambda);
     // - translates an outbound object in the staging outbox
     this.translateOutboundObjectLambda = new PythonFunction(
       this,
@@ -249,6 +229,15 @@ export class Dispatcher extends Construct {
   }
 
   // Creates a workflow that dispatches a received activity.
+  //
+  // The workflow supposes an input is like:
+  //
+  // {
+  //   activity: {
+  //     bucket: '<bucket-name>',
+  //     key: '<object-key>'
+  //   }
+  // }
   private createDispatchReceivedActivityWorkflow():
     stepfunctions.IStateMachine
   {
@@ -256,7 +245,7 @@ export class Dispatcher extends Construct {
     const workflowId = `DispatchReceivedActivity_${deploymentStage}`;
 
     // defines states
-    // - translates an activity
+    // - translates an activity received in the inbox
     const invokeTranslateActivity = new sfn_tasks.LambdaInvoke(
       this,
       `TranslateActivity_${workflowId}`,
@@ -267,36 +256,10 @@ export class Dispatcher extends Construct {
         taskTimeout: stepfunctions.Timeout.duration(Duration.seconds(30)),
       },
     );
-    // - handles the response
-    const invokeStageResponse = new sfn_tasks.LambdaInvoke(
-      this,
-      `StageResponse_${workflowId}`,
-      {
-        lambdaFunction: this.stageResponseLambda,
-        comment: 'Invokes StageResponseLambda',
-        payloadResponseOnly: true,
-        inputPath: '$.response',
-        taskTimeout: stepfunctions.Timeout.duration(Duration.seconds(30)),
-      },
-    );
-    const ifResponseExists = new stepfunctions.Choice(
-      this,
-      `IfResponseExists_${workflowId}`,
-      {
-        comment: 'Checks if the response exists',
-      },
-    );
-    ifResponseExists.when(
-      stepfunctions.Condition.isPresent('$.response'),
-      invokeStageResponse,
-    );
-    ifResponseExists.otherwise(
-      new stepfunctions.Pass(this, `NoResponse_${workflowId}`),
-    );
 
     // builds the state machine
     return new stepfunctions.StateMachine(this, workflowId, {
-      definition: invokeTranslateActivity.next(ifResponseExists),
+      definition: invokeTranslateActivity,
       timeout: Duration.minutes(30),
     });
   }
