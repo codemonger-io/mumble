@@ -16,6 +16,17 @@ from .exceptions import (
     CorruptedDataError,
     TooManyAccessError,
 )
+from .id_scheme import (
+    generate_user_activity_id,
+    generate_user_post_id,
+    make_user_followers_uri,
+    make_user_following_uri,
+    make_user_id,
+    make_user_inbox_uri,
+    make_user_key_id,
+    make_user_outbox_uri,
+)
+from .objects_store import generate_user_staging_outbox_key
 from .utils import current_yyyymmdd_hhmmss_ssssss
 
 
@@ -99,31 +110,31 @@ class User: # pylint: disable=too-many-instance-attributes
     def id(self) -> str: # pylint: disable=invalid-name
         """ID of the user.
         """
-        return f'https://{self.domain_name}/users/{self.username}'
+        return make_user_id(self.domain_name, self.username)
 
     @property
     def inbox_uri(self) -> str:
         """URI of the inbox.
         """
-        return f'{self.id}/inbox'
+        return make_user_inbox_uri(self.id)
 
     @property
     def outbox_uri(self) -> str:
         """URI of the outbox.
         """
-        return f'{self.id}/outbox'
+        return make_user_outbox_uri(self.id)
 
     @property
     def followers_uri(self) -> str:
         """URI of the followers list.
         """
-        return f'{self.id}/followers'
+        return make_user_followers_uri(self.id)
 
     @property
     def following_uri(self) -> str:
         """URI of the following list.
         """
-        return f'{self.id}/following'
+        return make_user_following_uri(self.id)
 
     @cached_property
     def public_key(self) -> PublicKey:
@@ -139,7 +150,7 @@ class User: # pylint: disable=too-many-instance-attributes
     def key_id(self) -> str:
         """Key pair ID of the user.
         """
-        return f'{self.id}#main-key'
+        return make_user_key_id(self.id)
 
     def get_private_key(self, ssm) -> str:
         """Obtains the private key of this user from Parameter Store on AWS
@@ -167,6 +178,20 @@ class User: # pylint: disable=too-many-instance-attributes
             ) from exc
         return res['Parameter']['Value']
 
+    def generate_activity_id(self) -> str:
+        """Generates a random ID for an activity of the user.
+        """
+        return generate_user_activity_id(self.id)
+
+    def generate_post_id(self) -> str:
+        """Generates a random ID for a post of the user.
+        """
+        return generate_user_post_id(self.id)
+
+    def generate_staging_outbox_key(self) -> str:
+        """Generates a random object key in user's staging outbox.
+        """
+        return generate_user_staging_outbox_key(self.username)
 
 
 class UserTable:
