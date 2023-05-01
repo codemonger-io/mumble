@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-"""Plans delivery of a staged activity in the outbox.
+"""Expands recipients of a staged activity in the outbox.
 
 You have to specify the following environment variable:
 * ``OBJECTS_BUCKET_NAME``: name of the S3 bucket that stores objects to be

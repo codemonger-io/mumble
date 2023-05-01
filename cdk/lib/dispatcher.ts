@@ -49,10 +49,10 @@ export class Dispatcher extends Construct {
    */
   private translateOutboundObjectLambda: lambda.IFunction;
   /**
-   * Lambda function that plans delivery of a staged activity.
+   * Lambda function that expands recipients of a staged activity in the outbox.
    * Implements a state in a workflow.
    */
-  private planActivityDeliveryLambda: lambda.IFunction;
+  private expandRecipientsLambda: lambda.IFunction;
   /**
    * Lambda function that delivers an activity to a single recipient.
    * Implements a state in a workflow.
@@ -130,15 +130,15 @@ export class Dispatcher extends Construct {
     systemParameters.domainNameParameter.grantRead(
       this.translateOutboundObjectLambda,
     );
-    // - plans delivery of a staged activity
-    this.planActivityDeliveryLambda = new PythonFunction(
+    // - expands recipients
+    this.expandRecipientsLambda = new PythonFunction(
       this,
-      'PlanActivityDeliveryLambda',
+      'ExpandRecipientsLambda',
       {
-        description: 'Plans delivery of a staged activity',
+        description: 'Expands recipients of a staged activity in the outbox',
         runtime: lambda.Runtime.PYTHON_3_8,
         architecture: lambda.Architecture.ARM_64,
-        entry: path.join('lambda', 'states', 'plan_activity_delivery'),
+        entry: path.join('lambda', 'states', 'expand_recipients'),
         index: 'index.py',
         handler: 'lambda_handler',
         layers: [libActivityPub, libCommons, libMumble],
@@ -152,10 +152,10 @@ export class Dispatcher extends Construct {
         timeout: Duration.minutes(15),
       },
     );
-    userTable.userTable.grantReadData(this.planActivityDeliveryLambda);
-    objectStore.grantGetFromOutbox(this.planActivityDeliveryLambda);
+    userTable.userTable.grantReadData(this.expandRecipientsLambda);
+    objectStore.grantGetFromOutbox(this.expandRecipientsLambda);
     systemParameters.domainNameParameter.grantRead(
-      this.planActivityDeliveryLambda,
+      this.expandRecipientsLambda,
     );
     // - delivers an activity to a single recipient
     this.deliverActivityLambda = new PythonFunction(
@@ -316,13 +316,13 @@ export class Dispatcher extends Construct {
     const workflowId = `DeliverStagedActivity_${deploymentStage}`;
 
     // defines states
-    // - plans the delivery; i.e., resolve recipients' inboxes
-    const invokePlanActivityDelivery = new sfn_tasks.LambdaInvoke(
+    // - expands recipients of the staged activity
+    const invokeExpandRecipients = new sfn_tasks.LambdaInvoke(
       this,
-      `PlanActivityDelivery_${workflowId}`,
+      `ExpandRecipients_${workflowId}`,
       {
-        lambdaFunction: this.planActivityDeliveryLambda,
-        comment: 'Invokes PlanActivityDeliveryLambda',
+        lambdaFunction: this.expandRecipientsLambda,
+        comment: 'Invokes ExpandRecipientsLambda',
         payloadResponseOnly: true,
         taskTimeout: stepfunctions.Timeout.duration(Duration.minutes(15)),
       },
@@ -355,7 +355,7 @@ export class Dispatcher extends Construct {
 
     // builds the state machine
     return new stepfunctions.StateMachine(this, workflowId, {
-      definition: invokePlanActivityDelivery.next(forEachRecipient),
+      definition: invokeExpandRecipients.next(forEachRecipient),
       timeout: Duration.hours(1),
     });
   }
