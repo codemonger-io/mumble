@@ -129,6 +129,8 @@ class DictObject(APObject):
 
         :raises requests.HTTPError: if an HTTP request fails.
 
+        :raises requests.Timeout: if an HTTP request times out.
+
         :raises ValueError: if the ``obj`` does not represent a valid object.
         """
         if isinstance(obj, str):

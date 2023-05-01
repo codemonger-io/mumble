@@ -455,6 +455,17 @@ class ResponseActivity(Activity):
         """
         return Reference(self._underlying['object']).id
 
+    def resolve_object_activity(self) -> Activity:
+        """Resolves the object of this activity.
+
+        :raises requests.HTTPError: if an HTTP request fails.
+
+        :raises requests.Timeout: if an HTTP request times out.
+
+        :raises TypeError: if the resolved object is not an activity.
+        """
+        return resolve_activity(self._underlying['object'])
+
 
 class Accept(ResponseActivity):
     """Wraps an "Accept" activity.
