@@ -12,6 +12,7 @@ from libactivitypub.data_objects import Note
 from libactivitypub.objects import DictObject
 from .exceptions import NotFoundError
 from .id_scheme import (
+    generate_unique_part,
     parse_user_activity_id,
     parse_user_post_id,
 )
@@ -70,6 +71,20 @@ def get_username_from_staging_outbox_key(key: str) -> str:
     :raises ValueError: if ``key`` is not in the staging outbox.
     """
     return get_username_from_key('staging', key)
+
+
+def generate_user_staging_outbox_key(username: str) -> str:
+    """Generates a random key in user's staging outbox.
+
+    Use this function to store a temporary object in the staging outbox.
+    """
+    return f'staging/users/{username}/{generate_unique_part()}.json'
+
+
+def get_username_from_outbox_key(key: str) -> str:
+    """Extracts the username from a given object key in the outbox.
+    """
+    return get_username_from_key('outbox', key)
 
 
 def load_json(s3_client, object_key: ObjectKey) -> Dict[str, Any]:

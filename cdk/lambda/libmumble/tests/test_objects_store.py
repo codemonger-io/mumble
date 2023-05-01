@@ -8,6 +8,7 @@ import pytest
 from libmumble.objects_store import (
     dict_as_object_key,
     get_username_from_inbox_key,
+    get_username_from_outbox_key,
     get_username_from_staging_outbox_key,
 )
 
@@ -94,3 +95,19 @@ def test_get_username_from_staging_outbox_key_with_invalid_key():
     key = 'inbox/users/kemoto/activity.json'
     with pytest.raises(ValueError):
         get_username_from_staging_outbox_key(key)
+
+
+def test_get_username_from_outbox_key_with_valid_key():
+    """Tests ``get_username_from_outbox_key`` with a valid outbox object key.
+    """
+    key = 'outbox/users/kemoto/activity.json'
+    assert get_username_from_outbox_key(key) == 'kemoto'
+
+
+def test_get_username_from_outbox_key_with_invalid_key():
+    """Tests ``get_username_from_outbox_key`` with an invalid outbox object
+    key.
+    """
+    key = 'staging/users/kemoto/note.json'
+    with pytest.raises(ValueError):
+        get_username_from_outbox_key(key)
