@@ -15,7 +15,7 @@ def to_urlsafe_base64(b64: str) -> str:
     return b64.rstrip('=').replace('+', '-').replace('/', '_')
 
 
-def format_datetime_in_utc(format: str, time: datetime) -> str:
+def format_datetime_in_utc(format: str, time: datetime) -> str: # pylint: disable=redefined-builtin
     """Formats a given datetime in a specified format.
 
     The timezone is adjusted into UTC.
