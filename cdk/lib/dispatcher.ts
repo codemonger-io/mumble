@@ -42,7 +42,7 @@ export class Dispatcher extends Construct {
    * Lambda function that translates an activity receinved in the inbox.
    * Implements a state in a workflow.
    */
-  private translateActivityLambda: lambda.IFunction;
+  private translateInboundActivityLambda: lambda.IFunction;
   /**
    * Lambda function that translates an outbound object in the staging outbox.
    * Implements a state in a workflow.
@@ -74,14 +74,14 @@ export class Dispatcher extends Construct {
 
     // state Lambda functions
     // - translates an activity received in the inbox
-    this.translateActivityLambda = new PythonFunction(
+    this.translateInboundActivityLambda = new PythonFunction(
       this,
-      'TranslateActivityLambda',
+      'TranslateInboundActivityLambda',
       {
         description: 'Translates an activity received in the inbox',
         runtime: lambda.Runtime.PYTHON_3_8,
         architecture: lambda.Architecture.ARM_64,
-        entry: path.join('lambda', 'states', 'translate_activity'),
+        entry: path.join('lambda', 'states', 'translate_inbound_activity'),
         index: 'index.py',
         handler: 'lambda_handler',
         layers: [libActivityPub, libCommons, libMumble],
@@ -95,11 +95,13 @@ export class Dispatcher extends Construct {
         timeout: Duration.seconds(30),
       },
     );
-    objectStore.grantGetFromInbox(this.translateActivityLambda);
-    objectStore.grantPutIntoStagingOutbox(this.translateActivityLambda);
-    userTable.userTable.grantReadWriteData(this.translateActivityLambda);
+    objectStore.grantGetFromInbox(this.translateInboundActivityLambda);
+    objectStore.grantPutIntoStagingOutbox(this.translateInboundActivityLambda);
+    userTable.userTable.grantReadWriteData(
+      this.translateInboundActivityLambda,
+    );
     systemParameters.domainNameParameter.grantRead(
-      this.translateActivityLambda,
+      this.translateInboundActivityLambda,
     );
     // - translates an outbound object in the staging outbox
     this.translateOutboundObjectLambda = new PythonFunction(
@@ -189,11 +191,11 @@ export class Dispatcher extends Construct {
       bucket: events.EventField.fromPath('$.detail.bucket.name'),
       key: events.EventField.fromPath('$.detail.object.key'),
     };
-    // - dispatches a received activity
-    const dispatchReceivedActivityWorkflow =
-      this.createDispatchReceivedActivityWorkflow();
+    // - translates a received activity in the inbox
+    const translateInboundActivityWorkflow =
+      this.createTranslateInboundActivityWorkflow();
     objectStore.inboxObjectCreatedRule.addTarget(new targets.SfnStateMachine(
-      dispatchReceivedActivityWorkflow,
+      translateInboundActivityWorkflow,
       {
         input: events.RuleTargetInput.fromObject({
           activity: s3ObjectInput,
@@ -229,7 +231,7 @@ export class Dispatcher extends Construct {
     ));
   }
 
-  // Creates a workflow that dispatches a received activity.
+  // Creates a workflow that translates a received activity in the inbox.
   //
   // The workflow supposes an input is like:
   //
@@ -239,19 +241,19 @@ export class Dispatcher extends Construct {
   //     key: '<object-key>'
   //   }
   // }
-  private createDispatchReceivedActivityWorkflow():
+  private createTranslateInboundActivityWorkflow():
     stepfunctions.IStateMachine
   {
     const { deploymentStage } = this.props;
-    const workflowId = `DispatchReceivedActivity_${deploymentStage}`;
+    const workflowId = `TranslateInboundActivity_${deploymentStage}`;
 
     // defines states
     // - translates an activity received in the inbox
-    const invokeTranslateActivity = new sfn_tasks.LambdaInvoke(
+    const invokeTranslateInboundActivity = new sfn_tasks.LambdaInvoke(
       this,
-      `TranslateActivity_${workflowId}`,
+      `TranslateInboundActivity_${workflowId}`,
       {
-        lambdaFunction: this.translateActivityLambda,
+        lambdaFunction: this.translateInboundActivityLambda,
         comment: 'Invokes TranslateActivityLambda',
         payloadResponseOnly: true,
         taskTimeout: stepfunctions.Timeout.duration(Duration.seconds(30)),
@@ -260,7 +262,7 @@ export class Dispatcher extends Construct {
 
     // builds the state machine
     return new stepfunctions.StateMachine(this, workflowId, {
-      definition: invokeTranslateActivity,
+      definition: invokeTranslateInboundActivity,
       timeout: Duration.minutes(30),
     });
   }

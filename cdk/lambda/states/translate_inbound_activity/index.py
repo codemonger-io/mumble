@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-"""Dispatches an activity received in the inbox.
+"""Translates an activity received in the inbox.
 
 This function is intended to be a step on a state machine.
 
@@ -53,8 +53,8 @@ USER_TABLE = UserTable(boto3.resource('dynamodb').Table(USER_TABLE_NAME))
 DOMAIN_NAME = get_domain_name(boto3.client('ssm'))
 
 
-class ActivityDispatcher(ActivityVisitor):
-    """``ActivityVistor`` that dispatches an activity.
+class ActivityTranslator(ActivityVisitor):
+    """``ActivityVistor`` that translates an activity.
     """
     user: User
     """Inbox owner user."""
@@ -78,7 +78,7 @@ class ActivityDispatcher(ActivityVisitor):
 
         :raises TooManyAccessError: if there are too many requests.
         """
-        LOGGER.debug('dispatching Follow: %s', follow.to_dict())
+        LOGGER.debug('translating Follow: %s', follow.to_dict())
         USER_TABLE.add_user_follower(self.user.username, follow)
         self.response = Accept.create(
             actor_id=follow.followed_id,
@@ -98,7 +98,7 @@ class ActivityDispatcher(ActivityVisitor):
 
         :raises TooManyAccessError: if there are too many requests.
         """
-        LOGGER.debug('dispatching Undo: %s', undo.to_dict())
+        LOGGER.debug('translating Undo: %s', undo.to_dict())
         undoer = Undoer(self.user)
         activity = undo.resolve_undone_activity()
         activity.visit(undoer)
@@ -126,8 +126,8 @@ class Undoer(ActivityVisitor):
         USER_TABLE.remove_user_follower(self.user.username, follow)
 
 
-def dispatch_activity(activity: Activity, user: User):
-    """Dispatches a given activity.
+def translate_activity(activity: Activity, user: User):
+    """Translates a given activity.
 
     :raises TooManyAccessError: if there are too many requests.
 
@@ -138,16 +138,17 @@ def dispatch_activity(activity: Activity, user: User):
     error.
     """
     try:
-        visitor = ActivityDispatcher(user)
-        activity.visit(visitor)
-        if visitor.response is not None:
+        translator = ActivityTranslator(user)
+        activity.visit(translator)
+        if translator.response is not None:
+            LOGGER.debug('saving response: %s', translator.response.to_dict())
             save_object(
                 boto3.client('s3'),
                 {
                     'bucket': OBJECTS_BUCKET_NAME,
                     'key': user.generate_staging_outbox_key(),
                 },
-                visitor.response,
+                translator.response,
             )
     except requests.HTTPError as exc:
         if exc.response.status_code == 429:
@@ -203,5 +204,5 @@ def lambda_handler(event, _context):
         raise NotFoundError(f'no such user: {username}')
     LOGGER.debug('loading activity: %s', object_key)
     activity = load_activity(boto3.client('s3'), object_key)
-    LOGGER.debug('dispatching activity: %s', activity.to_dict())
-    dispatch_activity(activity, user)
+    LOGGER.debug('translating activity: %s', activity.to_dict())
+    translate_activity(activity, user)
