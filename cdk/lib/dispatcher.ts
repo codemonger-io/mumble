@@ -49,6 +49,11 @@ export class Dispatcher extends Construct {
    */
   private stageResponseLambda: lambda.IFunction;
   /**
+   * Lambda function that translates an outbound object in the staging outbox.
+   * Implements a state in a workflow.
+   */
+  private translateOutboundObjectLambda: lambda.IFunction;
+  /**
    * Lambda function that plans delivery of a staged activity.
    * Implements a state in a workflow.
    */
@@ -116,6 +121,35 @@ export class Dispatcher extends Construct {
     );
     userTable.userTable.grantReadWriteData(this.stageResponseLambda);
     userTable.grantReadPrivateKeys(this.stageResponseLambda);
+    // - translates an outbound object in the staging outbox
+    this.translateOutboundObjectLambda = new PythonFunction(
+      this,
+      'TranslateOutboundObjectLambda',
+      {
+        description: 'Stages an outbound object in the staging outbox',
+        runtime: lambda.Runtime.PYTHON_3_8,
+        architecture: lambda.Architecture.ARM_64,
+        entry: path.join('lambda', 'states', 'translate_outbound_object'),
+        index: 'index.py',
+        handler: 'lambda_handler',
+        layers: [libActivityPub, libCommons, libMumble],
+        environment: {
+          OBJECTS_BUCKET_NAME: objectStore.objectsBucket.bucketName,
+          USER_TABLE_NAME: userTable.userTable.tableName,
+          DOMAIN_NAME_PARAMETER_PATH:
+            systemParameters.domainNameParameter.parameterName,
+        },
+        memorySize: 256,
+        timeout: Duration.seconds(30),
+      },
+    );
+    userTable.userTable.grantReadData(this.translateOutboundObjectLambda);
+    objectStore.grantGetFromStagingOutbox(this.translateOutboundObjectLambda);
+    objectStore.grantPutIntoOutbox(this.translateOutboundObjectLambda);
+    objectStore.grantPutIntoObjectsFolder(this.translateOutboundObjectLambda);
+    systemParameters.domainNameParameter.grantRead(
+      this.translateOutboundObjectLambda,
+    );
     // - plans delivery of a staged activity
     this.planActivityDeliveryLambda = new PythonFunction(
       this,
