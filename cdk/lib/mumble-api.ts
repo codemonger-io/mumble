@@ -11,6 +11,12 @@ import { PythonFunction } from '@aws-cdk/aws-lambda-python-alpha';
 
 import { BundledCode, FunctionProps } from 'cdk-cloudfront-function-bundle';
 import { RestApiWithSpec } from 'cdk-rest-api-with-spec';
+import {
+  type MappingTemplateItem,
+  composeMappingTemplate,
+  ifThen,
+  ifThenElse,
+} from 'mapping-template-compose';
 
 import type { DeploymentStage } from './deployment-stage';
 import type { LambdaDependencies } from './lambda-dependencies';
@@ -355,6 +361,49 @@ export class MumbleApi extends Construct {
       },
     );
 
+    // mapping template components
+    const mappingTemplates: { [name: string]: MappingTemplateItem } = {
+      resource: [
+        'resource',
+        `"$util.escapeJavaScript($util.urlDecode($input.params('resource'))).replaceAll("\\'", "'")"`,
+      ],
+      username: [
+        'username',
+        `"$util.escapeJavaScript($util.urlDecode($input.params('username'))).replaceAll("\\'", "'")"`,
+      ],
+      signature: [
+        'signature',
+        `"$util.escapeJavaScript($input.params('signature')).replaceAll("\\'", "'")"`,
+      ],
+      date: [
+        'date',
+        `"$util.escapeJavaScript($input.params('x-signature-date')).replaceAll("\\'", "'")"`,
+      ],
+      digest: [
+        'digest',
+        `"$util.escapeJavaScript($input.params('digest')).replaceAll("\\'", "'")"`,
+      ],
+      contentType: [
+        'contentType',
+        `"$util.escapeJavaScript($input.params('content-type')).replaceAll("\\'", "'")"`,
+      ],
+      body: [
+        'body',
+        `"$util.escapeJavaScript($input.body).replaceAll("\\'","'").replaceAll("\\'", "'")"`,
+      ],
+      apiDomainName: ifThenElse(
+        '$input.params("x-host-header") != ""',
+        [[
+          'apiDomainName',
+          `"$util.escapeJavaScript($input.params('x-host-header')).replaceAll("\\'", "'")"`,
+        ]],
+        [[
+          'apiDomainName',
+          '"$context.domainName"',
+        ]],
+      ),
+    };
+
     // /.well-known
     const well_known = this.api.root.addResource('.well-known');
     // /.well-known/webfinger
@@ -372,14 +421,10 @@ export class MumbleApi extends Construct {
           // Otherwise, `apiDomainName` equals that of API Gateway.
           // DO NOT rely on `apiDomainName` in production
           // TODO: add rel
-          'application/json': `{
-            "resource": "$util.escapeJavaScript($util.urlDecode($input.params('resource')))",
-            #if ($input.params('x-host-header') != '')
-            "apiDomainName": "$util.escapeJavaScript($input.params('x-host-header'))"
-            #else
-            "apiDomainName": "$context.domainName"
-            #end
-          }`,
+          'application/json': composeMappingTemplate([
+            mappingTemplates.resource,
+            mappingTemplates.apiDomainName,
+          ]),
         },
         integrationResponses: [
           catchErrorsWith(404, 'UnexpectedDomainError', 'NotFoundError'),
@@ -443,14 +488,10 @@ export class MumbleApi extends Construct {
           // the CloudFront distribution (only in development). Otherwise, use
           // Host.
           // DO NOT rely on `apiDomainName` in production
-          'application/json': `{
-            "username": "$util.escapeJavaScript($util.urlDecode($input.params('username')))",
-            #if ($input.params('x-host-header') != '')
-            "apiDomainName": "$util.escapeJavaScript($input.params('x-host-header'))"
-            #else
-            "apiDomainName": "$context.domainName"
-            #end
-          }`,
+          'application/json': composeMappingTemplate([
+            mappingTemplates.username,
+            mappingTemplates.apiDomainName,
+          ]),
         },
         integrationResponses: [
           catchErrorsWith(404, 'NotFoundError'),
@@ -512,19 +553,15 @@ export class MumbleApi extends Construct {
           // the CloudFront distribution (only in development). Otherwise, use
           // Host.
           // DO NOT rely on `apiDomainName` in production
-          'application/activity+json': `{
-            "username": "$util.escapeJavaScript($util.urlDecode($input.params('username')))",
-            "signature": "$util.escapeJavaScript($input.params('signature'))",
-            "date": "$util.escapeJavaScript($input.params('x-signature-date'))",
-            "digest": "$util.escapeJavaScript($input.params('digest'))",
-            "contentType": "$util.escapeJavaScript($input.params('content-type'))",
-            "body": "$util.escapeJavaScript($input.body).replaceAll("\\'","'")",
-            #if ($input.params('x-host-header') != '')
-            "apiDomainName": "$util.escapeJavaScript($input.params('x-host-header'))"
-            #else
-            "apiDomainName": "$context.domainName"
-            #end
-          }`,
+          'application/activity+json': composeMappingTemplate([
+            mappingTemplates.username,
+            mappingTemplates.signature,
+            mappingTemplates.date,
+            mappingTemplates.digest,
+            mappingTemplates.contentType,
+            mappingTemplates.body,
+            mappingTemplates.apiDomainName,
+          ]),
           // TODO: support application/ld+json
         },
         integrationResponses: [
