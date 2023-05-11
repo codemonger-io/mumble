@@ -6,9 +6,9 @@
 from functools import cached_property
 import logging
 import re
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Generator, Optional, Tuple
 from urllib.parse import unquote, urlparse
-from boto3.dynamodb.conditions import Attr
+from boto3.dynamodb.conditions import Attr, Key
 from libactivitypub.activity import Follow
 from libactivitypub.actor import PublicKey
 from .exceptions import (
@@ -58,8 +58,12 @@ class User: # pylint: disable=too-many-instance-attributes
         url: str,
         public_key_pem: str,
         private_key_path: str,
+        table: Optional['UserTable']=None,
     ):
         """Initializes with given parameters.
+
+        :param Optional[UserTable] table: ``UserTable`` that stores the user.
+        optional, though, some operation on ``User`` needs this.
         """
         self.domain_name = domain_name
         self.username = username
@@ -69,9 +73,14 @@ class User: # pylint: disable=too-many-instance-attributes
         self.url = url
         self.public_key_pem = public_key_pem
         self.private_key_path = private_key_path
+        self._table = table
 
     @staticmethod
-    def parse_item(item: Dict[str, Any], domain_name: str) -> 'User':
+    def parse_item(
+        item: Dict[str, Any],
+        domain_name: str,
+        table: Optional['UserTable']=None,
+    ) -> 'User':
         """Parses a given item in the user table.
 
         ``item`` must be a ``dict`` similar to the following (other items are
@@ -89,6 +98,9 @@ class User: # pylint: disable=too-many-instance-attributes
                 'privateKeyPath': '<private-key-path>'
             }
 
+        :param Optional[UserTable] table: ``UserTable`` that stores the user.
+        optional, though, some operation on ``User`` needs this.
+
         :raises ValueError: if ``item`` is not valid.
         """
         try:
@@ -102,6 +114,7 @@ class User: # pylint: disable=too-many-instance-attributes
                 url=item['url'],
                 public_key_pem=item['publicKeyPem'],
                 private_key_path=item['privateKeyPath'],
+                table=table,
             )
         except KeyError as exc:
             raise ValueError(f'invalid user item: {exc}') from exc
@@ -135,6 +148,39 @@ class User: # pylint: disable=too-many-instance-attributes
         """URI of the following list.
         """
         return make_user_following_uri(self.id)
+
+    def enumerate_followers(
+        self,
+        followers_per_query: int,
+    ) -> Generator[str, None, None]:
+        """Enumerates the follower of the user.
+
+        :param int followers_per_query: maximum number of followers to be
+        fetched in a single DynamoDB query. NOT the number of total followers
+        to be fetched.
+
+        :returns: generator of follower IDs.
+
+        :raises AttributeError: if this user is not associated with the user
+        table.
+        """
+        if self._table is None:
+            raise AttributeError('no user table is associated')
+        return self._table.enumerate_user_followers(
+            self.username,
+            followers_per_query,
+        )
+
+    @cached_property
+    def follower_count(self) -> int:
+        """Number of the followers of the user.
+
+        :raises AttributeError: if this user is not associated with the user
+        table.
+        """
+        if self._table is None:
+            raise AttributeError('no user table is associated')
+        return self._table.get_user_follower_count(self.username)
 
     @cached_property
     def public_key(self) -> PublicKey:
@@ -236,7 +282,7 @@ class UserTable:
         if 'Item' not in res:
             return None
         try:
-            return User.parse_item(res['Item'], domain_name)
+            return User.parse_item(res['Item'], domain_name, table=self)
         except ValueError as exc:
             raise CorruptedDataError(
                 f'invalid user data: "{username}"',
@@ -299,7 +345,7 @@ class UserTable:
             raise TooManyAccessError(
                 'exceeded provisioned table throughput',
             ) from exc
-        except self.exceptions.RequestLimitException as exc:
+        except self.exceptions.RequestLimitExceeded as exc:
             raise TooManyAccessError('exceeded API access limit') from exc
 
     def remove_user_follower(self, username: str, follow: Follow):
@@ -354,7 +400,79 @@ class UserTable:
             raise TooManyAccessError(
                 'exceeded provisioned table throughput',
             ) from exc
-        except self.exceptions.RequestLimitException as exc:
+        except self.exceptions.RequestLimitExceeded as exc:
+            raise TooManyAccessError('exceeded API access limit') from exc
+
+    def enumerate_user_followers(
+        self,
+        username: str,
+        followers_per_query: int,
+    ) -> Generator[str, None, None]:
+        """Enumerates the followers of a given user.
+
+        :param int followers_per_query: maximum number of followers to be
+        obtained in a single DynamoDB query. NOT the maximum number of
+        followers to be enumearted.
+
+        :returns: generator of follower IDs.
+
+        :raises TooManyAccessError: if access to the DynamoDB table exceeds
+        the limit.
+        """
+        # loops until all the followers are exhausted
+        key_condition = Key('pk').eq(
+            UserTable.make_follower_partition_key(username),
+        )
+        exclusive_start_key: Dict[str, Any] = {}
+        while True:
+            LOGGER.debug(
+                'querying followers: username=%s, from=%s',
+                username,
+                exclusive_start_key,
+            )
+            try:
+                res = self._table.query(
+                    KeyConditionExpression=key_condition,
+                    Limit=followers_per_query,
+                    **exclusive_start_key,
+                )
+                for item in res['Items']:
+                    yield item['followerId']
+                last_evaluated_key = res.get('LastEvaluatedKey')
+                LOGGER.debug('LastEvaludatedKey: %s', last_evaluated_key)
+                if not last_evaluated_key:
+                    return # finishes enumeration
+                exclusive_start_key = {
+                    'ExclusiveStartKey': last_evaluated_key,
+                }
+            except self.exceptions.ProvisionedThroughputExceededException as exc:
+                raise TooManyAccessError(
+                    'exceeded provisioned table throughput',
+                ) from exc
+            except self.exceptions.RequestLimitExceeded as exc:
+                raise TooManyAccessError('exceeded API access limit') from exc
+
+    def get_user_follower_count(self, username: str) -> int:
+        """Returns the number of followers of a given user.
+
+        :raises TooManyAccessError: if access to the DynamoDB table exceeds
+        the limit.
+        """
+        key_condition = Key('pk').eq(
+            UserTable.make_follower_partition_key(username),
+        )
+        LOGGER.debug('counting followers: %s', username)
+        try:
+            res = self._table.query(
+                KeyConditionExpression=key_condition,
+                Select='COUNT',
+            )
+            return res['Count']
+        except self.exceptions.ProvisionedThroughputExceededException as exc:
+            raise TooManyAccessError(
+                'exceeded provisioned table throughput',
+            ) from exc
+        except self.exceptions.RequestLimitExceeded as exc:
             raise TooManyAccessError('exceeded API access limit') from exc
 
     @staticmethod
@@ -367,11 +485,17 @@ class UserTable:
         }
 
     @staticmethod
+    def make_follower_partition_key(username: str) -> str:
+        """Returns the partition key of followers of a given user.
+        """
+        return f'{UserTable.FOLLOWER_PK_PREFIX}{username}'
+
+    @staticmethod
     def make_follower_key(username: str, follower_id: str) -> Dict[str, Any]:
         """Returns a primary key to get a follower from the user table.
         """
         return {
-            'pk': f'{UserTable.FOLLOWER_PK_PREFIX}{username}',
+            'pk': UserTable.make_follower_partition_key(username),
             'sk': follower_id,
         }
 
