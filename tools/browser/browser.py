@@ -14,7 +14,7 @@ from typing import Any, Dict, Generator, Iterable, List, Optional
 import click
 import jmespath
 from libactivitypub.activity import Activity
-from libactivitypub.activity_stream import get as activity_stream_get
+from libactivitypub.activity_streams import get as activity_streams_get
 from libactivitypub.actor import Actor, WebFinger
 from libactivitypub.collection import resolve_collection_page
 from libactivitypub.objects import ObjectStore
@@ -149,7 +149,7 @@ def object(object: str, query: str, dump: Optional[str]): # pylint: disable=rede
         LOGGER.debug('reading OBJECT from STDIN')
         object = read_stdin()
     LOGGER.debug('obtaining object: %s', object)
-    data = activity_stream_get(object)
+    data = activity_streams_get(object)
     if dump is not None:
         LOGGER.debug('saving the pulled object: %s', dump)
         save_json(data, dump)
@@ -202,7 +202,7 @@ def collection(
         LOGGER.debug('reading COLLECTION from STDIN')
         collection = read_stdin()
     LOGGER.debug('pulling collection: %s', collection)
-    data = activity_stream_get(collection)
+    data = activity_streams_get(collection)
     LOGGER.debug('number of total items: %d', data.get('totalItems'))
     items: Optional[List[Dict[str, Any]]]
     items = data.get('items') or data.get('orderedItems')
