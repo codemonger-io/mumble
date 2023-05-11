@@ -313,7 +313,7 @@ export class MumbleApi extends Construct {
     // - Object
     const objectModel = this.api.addModel('Object', {
       description: 'Object',
-      contentType: 'application/json',
+      contentType: 'application/activity+json',
       schema: {
         schema: apigateway.JsonSchemaVersion.DRAFT4,
         title: 'object',
@@ -336,7 +336,7 @@ export class MumbleApi extends Construct {
     // - Activity
     const activityModel = this.api.addModel('Activity', {
       description: 'Activity',
-      contentType: 'application/json',
+      contentType: 'application/activity+json',
       schema: {
         schema: apigateway.JsonSchemaVersion.DRAFT4,
         title: 'activity',
@@ -379,7 +379,7 @@ export class MumbleApi extends Construct {
     // - OrderedCollection
     const orderedCollectionModel = this.api.addModel('OrderedCollection', {
       description: 'Ordered collection of items',
-      contentType: 'application/json',
+      contentType: 'application/activity+json',
       schema: {
         schema: apigateway.JsonSchemaVersion.DRAFT4,
         title: 'orderedCollection',
@@ -420,7 +420,7 @@ export class MumbleApi extends Construct {
       'OrderedCollectionPage',
       {
         description: 'Page in an ordered collection of items',
-        contentType: 'application/json',
+        contentType: 'application/activity+json',
         schema: {
           schema: apigateway.JsonSchemaVersion.DRAFT4,
           title: 'orderedCollectionPage',
@@ -475,7 +475,7 @@ export class MumbleApi extends Construct {
     // - Paginated
     const paginatedModel = this.api.addModel('Paginated', {
       description: 'Paginated response that may be either of an OrderedCollection or OrderedCollectionPage',
-      contentType: 'application/json',
+      contentType: 'application/activity+json',
       schema: {
         schema: apigateway.JsonSchemaVersion.DRAFT4,
         title: 'paginated',
