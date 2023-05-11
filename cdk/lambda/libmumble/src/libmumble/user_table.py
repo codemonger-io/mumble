@@ -152,6 +152,8 @@ class User: # pylint: disable=too-many-instance-attributes
     def enumerate_followers(
         self,
         followers_per_query: int,
+        after: Optional[str]=None,
+        before: Optional[str]=None,
     ) -> Generator[str, None, None]:
         """Enumerates the follower of the user.
 
@@ -163,12 +165,16 @@ class User: # pylint: disable=too-many-instance-attributes
 
         :raises AttributeError: if this user is not associated with the user
         table.
+
+        :raises ValueError: if both of ``after`` and ``before`` are specified.
         """
         if self._table is None:
             raise AttributeError('no user table is associated')
         return self._table.enumerate_user_followers(
             self.username,
             followers_per_query,
+            after=after,
+            before=before,
         )
 
     @cached_property
@@ -407,6 +413,8 @@ class UserTable:
         self,
         username: str,
         followers_per_query: int,
+        after: Optional[str]=None,
+        before: Optional[str]=None,
     ) -> Generator[str, None, None]:
         """Enumerates the followers of a given user.
 
@@ -416,14 +424,25 @@ class UserTable:
 
         :returns: generator of follower IDs.
 
+        :raises ValueError: if both of ``after`` and ``before`` are specified.
+
         :raises TooManyAccessError: if access to the DynamoDB table exceeds
         the limit.
         """
+        if after is not None and before is not None:
+            raise ValueError('both of after and before are specified')
         # loops until all the followers are exhausted
         key_condition = Key('pk').eq(
             UserTable.make_follower_partition_key(username),
         )
         exclusive_start_key: Dict[str, Any] = {}
+        if before is not None:
+            before_key = UserTable.make_follower_key(username, before)
+            exclusive_start_key['ScanIndexForward'] = False
+            exclusive_start_key['ExclusiveStartKey'] = before_key
+        if after is not None:
+            after_key = UserTable.make_follower_key(username, after)
+            exclusive_start_key['ExclusiveStartKey'] = after_key
         while True:
             LOGGER.debug(
                 'querying followers: username=%s, from=%s',
@@ -436,15 +455,16 @@ class UserTable:
                     Limit=followers_per_query,
                     **exclusive_start_key,
                 )
-                for item in res['Items']:
-                    yield item['followerId']
+                follower_ids = [item['followerId'] for item in res['Items']]
+                if before is not None:
+                    follower_ids.sort()
+                for follower_id in follower_ids:
+                    yield follower_id
                 last_evaluated_key = res.get('LastEvaluatedKey')
                 LOGGER.debug('LastEvaludatedKey: %s', last_evaluated_key)
                 if not last_evaluated_key:
                     return # finishes enumeration
-                exclusive_start_key = {
-                    'ExclusiveStartKey': last_evaluated_key,
-                }
+                exclusive_start_key['ExclusiveStartKey'] = last_evaluated_key
             except self.exceptions.ProvisionedThroughputExceededException as exc:
                 raise TooManyAccessError(
                     'exceeded provisioned table throughput',
