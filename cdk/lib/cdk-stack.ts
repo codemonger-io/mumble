@@ -57,6 +57,7 @@ export class CdkStack extends Stack {
       deploymentStage,
       lambdaDependencies,
       objectStore,
+      systemParameters,
       userTable,
     });
 

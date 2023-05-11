@@ -21,11 +21,14 @@ import {
 import type { DeploymentStage } from './deployment-stage';
 import type { LambdaDependencies } from './lambda-dependencies';
 import type { ObjectStore } from './object-store';
+import type { SystemParameters } from './system-parameters';
 import type { UserTable } from './user-table';
 
 export interface Props {
   /** Deployment stage. */
   readonly deploymentStage: DeploymentStage;
+  /** System parameters. */
+  readonly systemParameters: SystemParameters;
   /** Lambda dependencies. */
   readonly lambdaDependencies: LambdaDependencies;
   /** User table. */
@@ -54,6 +57,7 @@ export class MumbleApi extends Construct {
       deploymentStage,
       lambdaDependencies,
       objectStore,
+      systemParameters,
       userTable,
     } = props;
     const { libActivityPub, libCommons, libMumble } = lambdaDependencies;
@@ -67,7 +71,7 @@ export class MumbleApi extends Construct {
       entry: path.join('lambda', 'web_finger'),
       index: 'index.py',
       handler: 'lambda_handler',
-      layers: [libActivityPub, libMumble],
+      layers: [libActivityPub, libCommons, libMumble],
       memorySize: 128,
       timeout: Duration.seconds(5),
       // TODO: specify DOMAIN_NAME in production
@@ -80,7 +84,7 @@ export class MumbleApi extends Construct {
       entry: path.join('lambda', 'describe_user'),
       index: 'index.py',
       handler: 'lambda_handler',
-      layers: [libActivityPub, libMumble],
+      layers: [libActivityPub, libCommons, libMumble],
       environment: {
         USER_TABLE_NAME: userTable.userTable.tableName,
         // TODO: specify DOMAIN_NAME in production
@@ -112,6 +116,29 @@ export class MumbleApi extends Construct {
     );
     userTable.userTable.grantReadData(receiveInboundActivityLambda);
     objectStore.grantPutIntoInbox(receiveInboundActivityLambda);
+    // - returns the follower of a given user
+    const getFollowersLambda = new PythonFunction(
+      this,
+      'GetFollowersLambda',
+      {
+        description: 'Returns the followers of a given user',
+        runtime: lambda.Runtime.PYTHON_3_8,
+        architecture: lambda.Architecture.ARM_64,
+        entry: path.join('lambda', 'get_followers'),
+        index: 'index.py',
+        handler: 'lambda_handler',
+        layers: [libActivityPub, libCommons, libMumble],
+        environment: {
+          USER_TABLE_NAME: userTable.userTable.tableName,
+          DOMAIN_NAME_PARAMETER_PATH:
+            systemParameters.domainNameParameter.parameterName,
+        },
+        memorySize: 256,
+        timeout: Duration.seconds(20),
+      },
+    );
+    userTable.userTable.grantReadData(getFollowersLambda);
+    systemParameters.domainNameParameter.grantRead(getFollowersLambda);
 
     // the API
     this.api = new RestApiWithSpec(this, `mumble-api-${deploymentStage}`, {
@@ -349,6 +376,122 @@ export class MumbleApi extends Construct {
         required: ['type', 'actor'],
       },
     });
+    // - OrderedCollection
+    const orderedCollectionModel = this.api.addModel('OrderedCollection', {
+      description: 'Ordered collection of items',
+      contentType: 'application/json',
+      schema: {
+        schema: apigateway.JsonSchemaVersion.DRAFT4,
+        title: 'orderedCollection',
+        description: 'Ordered collection of items',
+        type: apigateway.JsonSchemaType.OBJECT,
+        properties: {
+          '@context': {
+            description: 'JSON-LD context',
+            type: apigateway.JsonSchemaType.STRING,
+            example: 'https://www.w3.org/ns/activitystreams',
+          },
+          id: {
+            description: 'ID of the collection',
+            type: apigateway.JsonSchemaType.STRING,
+            example: 'https://mumble.codmonger.io/users/kemoto/followers',
+          },
+          type: {
+            description: 'ActivityStreams object type',
+            type: apigateway.JsonSchemaType.STRING,
+            example: 'OrderedCollection',
+          },
+          first: {
+            description: 'ID of the first page of the collection',
+            type: apigateway.JsonSchemaType.STRING,
+            example: 'https://mumble.codemonger.io/users/kemoto/followers?page=true',
+          },
+          totalItems: {
+            description: 'Total number of items in the collection',
+            type: apigateway.JsonSchemaType.INTEGER,
+            minimum: 0,
+            example: 123,
+          },
+        },
+        required: ['@context', 'id', 'type', 'first'],
+      },
+    });
+    const orderedCollectionPageModel = this.api.addModel(
+      'OrderedCollectionPage',
+      {
+        description: 'Page in an ordered collection of items',
+        contentType: 'application/json',
+        schema: {
+          schema: apigateway.JsonSchemaVersion.DRAFT4,
+          title: 'orderedCollectionPage',
+          description: 'Page in an ordered collection of items',
+          type: apigateway.JsonSchemaType.OBJECT,
+          properties: {
+            '@context': {
+              description: 'JSON-LD context',
+              type: apigateway.JsonSchemaType.STRING,
+              example: 'https://www.w3.org/ns/activitystreams',
+            },
+            id: {
+              description: 'ID of the collection page',
+              type: apigateway.JsonSchemaType.STRING,
+              example: 'https://mumble.codemonger.io/users/kemoto/followers?page=true',
+            },
+            type: {
+              description: 'ActivityStreams type of the collection page',
+              type: apigateway.JsonSchemaType.STRING,
+              example: 'OrderedCollectionPage',
+            },
+            partOf: {
+              description: 'ID of the collection containing the page',
+              type: apigateway.JsonSchemaType.STRING,
+              example: 'https://mumble.codemonger.io/users/kemoto/followers',
+            },
+            orderedItems: {
+              description: 'Items in the collection page',
+              type: apigateway.JsonSchemaType.ARRAY,
+            },
+            totalItems: {
+              description: 'Total number of items in the collection',
+              type: apigateway.JsonSchemaType.INTEGER,
+              minimum: 0,
+              example: 123,
+            },
+            prev: {
+              description: 'ID of the previous collection page',
+              type: apigateway.JsonSchemaType.STRING,
+              example: 'https://mumble.codemonger.io/users/kemoto/followers?page=true&before=https%3A%2F%2Fmastodon.social%2Fusers%2FGargron',
+            },
+            next: {
+              description: 'ID of the next collection page',
+              type: apigateway.JsonSchemaType.STRING,
+              example: 'https://mumble.codemonger.io/users/kemoto/followers?page=true&after=https%3A%2F%2Fmastodon.social%2Fusers%2FGargron',
+            },
+          },
+          required: ['@context', 'id', 'type', 'partOf', 'orderedItems'],
+        },
+      },
+    );
+    // - Paginated
+    const paginatedModel = this.api.addModel('Paginated', {
+      description: 'Paginated response that may be either of an OrderedCollection or OrderedCollectionPage',
+      contentType: 'application/json',
+      schema: {
+        schema: apigateway.JsonSchemaVersion.DRAFT4,
+        title: 'paginated',
+        description: 'Paginated response that may be an OrderedCollection or OrderedCollectionPage',
+        oneOf: [
+          {
+            description: 'OrderedCollection',
+            modelRef: orderedCollectionModel,
+          },
+          {
+            description: 'OrderedCollectionPage',
+            modelRef: orderedCollectionPageModel,
+          },
+        ],
+      },
+    });
 
     // request validator
     const requestValidator = new apigateway.RequestValidator(
@@ -389,7 +532,7 @@ export class MumbleApi extends Construct {
       ],
       body: [
         'body',
-        `"$util.escapeJavaScript($input.body).replaceAll("\\'","'").replaceAll("\\'", "'")"`,
+        `"$util.escapeJavaScript($input.body).replaceAll("\\'","'")"`,
       ],
       apiDomainName: ifThenElse(
         '$input.params("x-host-header") != ""',
@@ -400,6 +543,27 @@ export class MumbleApi extends Construct {
         [[
           'apiDomainName',
           '"$context.domainName"',
+        ]],
+      ),
+      page: ifThen(
+        '$input.params("page") != ""',
+        [[
+          'page',
+          '$util.escapeJavaScript($input.params("page"))',
+        ]],
+      ),
+      after: ifThen(
+        '$input.params("after") != ""',
+        [[
+          'after',
+          `"$util.escapeJavaScript($util.urlDecode($input.params("after"))).replaceAll("\\'", "¶")"`,
+        ]],
+      ),
+      before: ifThen(
+        '$input.params("before") != ""',
+        [[
+          'before',
+          `"$util.escapeJavaScript($util.urlDecode($input.params("before"))).replaceAll("\\'", "'")"`,
         ]],
       ),
     };
@@ -617,6 +781,89 @@ export class MumbleApi extends Construct {
           {
             statusCode: '500',
             description: 'internal server error',
+          },
+        ],
+      },
+    );
+    // /users/{username}/followers
+    const followers = user.addResource('followers');
+    // - GET: returns the followers of a given user
+    followers.addMethod(
+      'GET',
+      new apigateway.LambdaIntegration(getFollowersLambda, {
+        proxy: false,
+        passthroughBehavior: apigateway.PassthroughBehavior.NEVER,
+        requestTemplates: {
+          'application/json': composeMappingTemplate([
+            mappingTemplates.username,
+            mappingTemplates.page,
+            mappingTemplates.after,
+            mappingTemplates.before,
+          ]),
+        },
+        integrationResponses: [
+          catchErrorsWith(400, 'BadRequestError'),
+          catchErrorsWith(404, 'NotFoundError'),
+          {
+            statusCode: '200',
+          },
+        ],
+      }),
+      {
+        operationName: 'getFollowers',
+        description: 'Returns the followers of a given user',
+        requestParameterSchemas: {
+          'method.request.path.username': {
+            description: 'Username whose followers are to be obtained',
+            required: true,
+            schema: {
+              type: 'string',
+            },
+            example: 'kemoto',
+          },
+          'method.request.querystring.page': {
+            description: 'Whether to obtain a page of followers',
+            required: false,
+            schema: {
+              type: 'boolean',
+              default: 'false',
+            },
+            example: 'true',
+          },
+          'method.request.querystring.after': {
+            description: 'Obtains followers after this ID',
+            required: false,
+            schema: {
+              type: 'string',
+            },
+            example: 'https%3A%2F%2Fmumble.codemonger.io%2Fusers%2Fkemoto',
+          },
+          'method.request.querystring.before': {
+            description: 'Obtains followers before this ID',
+            required: false,
+            schema: {
+              type: 'string',
+            },
+            example: 'https%3A%2F%2Fmumble.codemonger.io%2Fusers%2Fkemoto',
+          },
+        },
+        requestValidator,
+        methodResponses: [
+          {
+            statusCode: '200',
+            description: 'successful operation',
+            responseModels: {
+              'application/activity+json': paginatedModel,
+              'application/ld+json': paginatedModel,
+            },
+          },
+          {
+            statusCode: '400',
+            description: 'request is malformed',
+          },
+          {
+            statusCode: '404',
+            description: 'user is not found',
           },
         ],
       },
