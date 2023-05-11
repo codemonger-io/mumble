@@ -150,6 +150,77 @@
           }
         }
       }
+    },
+    "/users/{username}/followers": {
+      "get": {
+        "description": "Returns the followers of a given user",
+        "parameters": [
+          {
+            "description": "Username whose followers are to be obtained",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "kemoto",
+            "name": "username",
+            "in": "path"
+          },
+          {
+            "description": "Whether to obtain a page of followers",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": "false"
+            },
+            "example": "true",
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "description": "Obtains followers after this ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "https%3A%2F%2Fmumble.codemonger.io%2Fusers%2Fkemoto",
+            "name": "after",
+            "in": "query"
+          },
+          {
+            "description": "Obtains followers before this ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "https%3A%2F%2Fmumble.codemonger.io%2Fusers%2Fkemoto",
+            "name": "before",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation",
+            "content": {
+              "application/activity+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MumbleApimumbleapidevelopmentPaginated3378EA85"
+                }
+              },
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MumbleApimumbleapidevelopmentPaginated3378EA85"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "request is malformed"
+          },
+          "404": {
+            "description": "user is not found"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -353,6 +424,111 @@
         ],
         "title": "activity",
         "type": "object"
+      },
+      "MumbleApimumbleapidevelopmentOrderedCollection0C5D4CEF": {
+        "description": "Ordered collection of items",
+        "properties": {
+          "@context": {
+            "description": "JSON-LD context",
+            "example": "https://www.w3.org/ns/activitystreams",
+            "type": "string"
+          },
+          "id": {
+            "description": "ID of the collection",
+            "example": "https://mumble.codmonger.io/users/kemoto/followers",
+            "type": "string"
+          },
+          "type": {
+            "description": "ActivityStreams object type",
+            "example": "OrderedCollection",
+            "type": "string"
+          },
+          "first": {
+            "description": "ID of the first page of the collection",
+            "example": "https://mumble.codemonger.io/users/kemoto/followers?page=true",
+            "type": "string"
+          },
+          "totalItems": {
+            "description": "Total number of items in the collection",
+            "example": 123,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "@context",
+          "id",
+          "type",
+          "first"
+        ],
+        "title": "orderedCollection",
+        "type": "object"
+      },
+      "MumbleApimumbleapidevelopmentOrderedCollectionPage9B3DA8FB": {
+        "description": "Page in an ordered collection of items",
+        "properties": {
+          "@context": {
+            "description": "JSON-LD context",
+            "example": "https://www.w3.org/ns/activitystreams",
+            "type": "string"
+          },
+          "id": {
+            "description": "ID of the collection page",
+            "example": "https://mumble.codemonger.io/users/kemoto/followers?page=true",
+            "type": "string"
+          },
+          "type": {
+            "description": "ActivityStreams type of the collection page",
+            "example": "OrderedCollectionPage",
+            "type": "string"
+          },
+          "partOf": {
+            "description": "ID of the collection containing the page",
+            "example": "https://mumble.codemonger.io/users/kemoto/followers",
+            "type": "string"
+          },
+          "orderedItems": {
+            "description": "Items in the collection page",
+            "type": "array"
+          },
+          "totalItems": {
+            "description": "Total number of items in the collection",
+            "example": 123,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "prev": {
+            "description": "ID of the previous collection page",
+            "example": "https://mumble.codemonger.io/users/kemoto/followers?page=true&before=https%3A%2F%2Fmastodon.social%2Fusers%2FGargron",
+            "type": "string"
+          },
+          "next": {
+            "description": "ID of the next collection page",
+            "example": "https://mumble.codemonger.io/users/kemoto/followers?page=true&after=https%3A%2F%2Fmastodon.social%2Fusers%2FGargron",
+            "type": "string"
+          }
+        },
+        "required": [
+          "@context",
+          "id",
+          "type",
+          "partOf",
+          "orderedItems"
+        ],
+        "title": "orderedCollectionPage",
+        "type": "object"
+      },
+      "MumbleApimumbleapidevelopmentPaginated3378EA85": {
+        "description": "Paginated response that may be an OrderedCollection or OrderedCollectionPage",
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/MumbleApimumbleapidevelopmentOrderedCollection0C5D4CEF"
+          },
+          {
+            "$ref": "#/components/schemas/MumbleApimumbleapidevelopmentOrderedCollectionPage9B3DA8FB"
+          }
+        ],
+        "title": "paginated"
       }
     },
     "securitySchemes": {}
