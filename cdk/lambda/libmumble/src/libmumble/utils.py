@@ -4,6 +4,15 @@
 """
 
 from datetime import datetime, timezone
+from urllib.parse import quote
+
+
+def urlencode(text: str) -> str:
+    """Converts a given string into a URL-encoded string.
+
+    Replaces also slashes ('/').
+    """
+    return quote(text, safe='')
 
 
 def to_urlsafe_base64(b64: str) -> str:

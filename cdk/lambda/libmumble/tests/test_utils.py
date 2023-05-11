@@ -8,9 +8,18 @@ from libmumble.utils import (
     format_yyyymmdd_hhmmss,
     format_yyyymmdd_hhmmss_ssssss,
     to_urlsafe_base64,
+    urlencode,
 )
 import pytest
 import pytz
+
+
+def test_urlencode():
+    """Tests ``urlencode``.
+    """
+    input = 'https://mumble.codemonger.io/users/kemoto'
+    expected = 'https%3A%2F%2Fmumble.codemonger.io%2Fusers%2Fkemoto'
+    assert urlencode(input) == expected
 
 
 def test_to_urlsafe_base64():
