@@ -9,7 +9,7 @@ import logging
 from typing import Any, Dict, TypedDict
 from urllib.parse import urlparse
 import requests
-from .mime_types import DEFAULT_ACTIVITY_STREAMS_MIME_TYPE
+from .mime_types import ACTIVITY_STREAMS_MIME_TYPES
 from .signature import digest_request_body, make_signature_header
 
 
@@ -45,7 +45,7 @@ def get(endpoint: str) -> Dict[str, Any]:
     res = requests.get(
         endpoint,
         headers={
-            'Accept': DEFAULT_ACTIVITY_STREAMS_MIME_TYPE,
+            'Accept': ', '.join(ACTIVITY_STREAMS_MIME_TYPES),
         },
         timeout=DEFAULT_REQUEST_TIMEOUT,
     )
@@ -99,7 +99,7 @@ def post(
         endpoint,
         data=body,
         headers={
-            'Accept': DEFAULT_ACTIVITY_STREAMS_MIME_TYPE,
+            'Accept': ', '.join(ACTIVITY_STREAMS_MIME_TYPES),
             'Content-Type': 'application/json',
             'Date': date,
             'Digest': body_digest,
