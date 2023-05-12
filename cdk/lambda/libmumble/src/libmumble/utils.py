@@ -36,7 +36,7 @@ def format_datetime_in_utc(format: str, time: datetime) -> str: # pylint: disabl
     offset = time.tzinfo.utcoffset(time)
     if offset is None:
         raise ValueError('datetime must be timezone-aware')
-    if offset != 0:
+    if offset.total_seconds() != 0:
         time = time.astimezone(timezone.utc)
     return time.strftime(format)
 
