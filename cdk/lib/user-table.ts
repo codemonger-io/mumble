@@ -56,6 +56,8 @@ export class UserTable extends Construct {
       //     - privateKeyPath
       //     - followerCount
       //     - followingCount
+      //     - lastActivityAt: "<yyyy-mm-ddTHH:MM:ss.SSSSSSZ>"
+      //         - when the user made an activity last time
       //
       // 2. follower of the user associated with <username>
       //     - pk: "followers:<username>"
