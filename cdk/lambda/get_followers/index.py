@@ -133,7 +133,7 @@ def lambda_handler(event, _context):
 
         {
             'username': '<username>',
-            'page': true,
+            'page': True,
             'after': '<account-id>',
             'before': '<account-id>'
         }
@@ -145,7 +145,7 @@ def lambda_handler(event, _context):
 
     You have to specify either of ``after`` and ``before``.
 
-    If ``page`` is ``false`` or omitted, returns a ``dict`` representing a
+    If ``page`` is ``False`` or omitted, returns a ``dict`` representing a
     collection similar to the following:
 
     .. code-block:: python
@@ -158,7 +158,7 @@ def lambda_handler(event, _context):
             'first': 'https://<domain-name>/users/<username>/followers?page=true'
         }
 
-    If ``page`` is ``true``, returns a ``dict`` representing a collection page
+    If ``page`` is ``True``, returns a ``dict`` representing a collection page
     similar to the following:
 
     .. code-block:: python
@@ -169,11 +169,15 @@ def lambda_handler(event, _context):
             'type': 'OrderedCollectionPage',
             'totalItems': 123,
             'next': 'https://<domain-name>/users/<username>/followers?page=true&after=<next-key>',
+            'prev': 'https://<domain-name>/users/<username>/followers?page=true&before=<prev-key>',
             'partOf': 'https://<domain-name>/users/<username>/followers'
             'orderedItems': [
                 '<follower-id>',
             ]
         }
+
+    ``next`` is omitted if no next follower page exists.
+    ``prev`` is omitted if no previous follower page exists.
 
     :raises KeyError: if ``event`` has no "username".
 
