@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from libmumble.utils import (
     format_yyyymmdd_hhmmss,
     format_yyyymmdd_hhmmss_ssssss,
+    parse_yyyymmdd_hhmmss,
+    parse_yyyymmdd_hhmmss_ssssss,
     to_urlsafe_base64,
     urlencode,
 )
@@ -88,3 +90,46 @@ def test_format_yyyymmdd_hhmmss_with_naive():
     time = datetime(2023, 4, 27, 17, 57, 10)
     with pytest.raises(ValueError):
         format_yyyymmdd_hhmmss(time)
+
+
+def test_parse_yyyymmdd_hhmmss_ssssss():
+    """Tests ``parse_yyyymmdd_hhmmss_ssssss`` with
+    "2023-05-12T11:19:01.123456Z".
+
+    Also makes sure that the timezone is configured.
+    """
+    time_str = '2023-05-12T11:19:01.123456Z'
+    expected = datetime(2023, 5, 12, 11, 19, 1, 123456, tzinfo=timezone.utc)
+    parsed = parse_yyyymmdd_hhmmss_ssssss(time_str)
+    assert parsed == expected
+    assert parsed.tzinfo is not None
+    assert parsed.tzinfo.utcoffset(parsed).total_seconds() == 0
+
+
+def test_parse_yyyymmdd_hhmmss_ssssss_with_invalid_timestamp():
+    """Tests ``parse_yyyymmdd_hhmmss_ssssss`` with "11:19:01 on May 12, 2023".
+    """
+    time_str = '11:19:01 on May 12, 2023'
+    with pytest.raises(ValueError):
+        parse_yyyymmdd_hhmmss_ssssss(time_str)
+
+
+def test_parse_yyyymmdd_hhmmss():
+    """Tests ``parse_yyyymmdd_hhmmss`` with "2023-05-12T14:45:09Z".
+
+    Also makes sure that the timezone is configured.
+    """
+    time_str = '2023-05-12T14:45:00Z'
+    expected = datetime(2023, 5, 12, 14, 45, 0, tzinfo=timezone.utc)
+    parsed = parse_yyyymmdd_hhmmss(time_str)
+    assert parsed == expected
+    assert parsed.tzinfo is not None
+    assert parsed.tzinfo.utcoffset(parsed).total_seconds() == 0
+
+
+def test_parse_yyyymmdd_hhmmss_with_invalid_timestamp():
+    """Tests ``parse_yyyymmdd_hhmmss`` with "14:45:09 on May 12, 2023".
+    """
+    time_str = '14:45:00 on May 12, 2023'
+    with pytest.raises(ValueError):
+        parse_yyyymmdd_hhmmss(time_str)

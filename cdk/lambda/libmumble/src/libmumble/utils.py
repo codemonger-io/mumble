@@ -5,6 +5,14 @@
 
 from datetime import datetime, timezone
 from urllib.parse import quote
+import pytz
+
+
+# format string for "yyyy-mm-ddTHH:MM:ss.SSSSSSZ"
+FORMAT_STRING_YYYYMMDD_HHMMSS_SSSSSS = '%Y-%m-%dT%H:%M:%S.%fZ'
+
+# format string for "yyyy-mm-ddTHH:MM:ssZ"
+FORMAT_STRING_YYYYMMDD_HHMMSS = '%Y-%m-%dT%H:%M:%SZ'
 
 
 def urlencode(text: str) -> str:
@@ -48,7 +56,7 @@ def format_yyyymmdd_hhmmss_ssssss(time: datetime) -> str:
 
     :raises ValueError: if ``time`` is naive.
     """
-    return format_datetime_in_utc('%Y-%m-%dT%H:%M:%S.%fZ', time)
+    return format_datetime_in_utc(FORMAT_STRING_YYYYMMDD_HHMMSS_SSSSSS, time)
 
 
 def format_yyyymmdd_hhmmss(time: datetime) -> str:
@@ -58,7 +66,7 @@ def format_yyyymmdd_hhmmss(time: datetime) -> str:
 
     :raises ValueError: if ``time`` is naive.
     """
-    return format_datetime_in_utc('%Y-%m-%dT%H:%M:%SZ', time)
+    return format_datetime_in_utc(FORMAT_STRING_YYYYMMDD_HHMMSS, time)
 
 
 def current_yyyymmdd_hhmmss_ssssss() -> str:
@@ -71,3 +79,26 @@ def current_yyyymmdd_hhmmss() -> str:
     """Returns the current timestamp in the form: "yyyy-mm-ddTHH:MM:ssZ".
     """
     return format_yyyymmdd_hhmmss(datetime.now(tz=timezone.utc))
+
+
+def parse_yyyymmdd_hhmmss_ssssss(time_str: str) -> datetime:
+    """Parses a given timestamp represented in "yyyy-mm-ddTHH:MM:ss.SSSSSSZ"
+    form.
+
+    The timezone is assumed to be UTC.
+
+    :raises ValueError: if ``time_str`` is malformed.
+    """
+    time = datetime.strptime(time_str, FORMAT_STRING_YYYYMMDD_HHMMSS_SSSSSS)
+    return pytz.utc.localize(time)
+
+
+def parse_yyyymmdd_hhmmss(time_str: str) -> datetime:
+    """Parses a given timestamp represented in "yyyy-mm-ddTHH:MM:ssZ" form.
+
+    The timezone is assumed to be UTC.
+
+    :raises ValueError: if ``time_str`` is malformed.
+    """
+    time = datetime.strptime(time_str, FORMAT_STRING_YYYYMMDD_HHMMSS)
+    return pytz.utc.localize(time)
