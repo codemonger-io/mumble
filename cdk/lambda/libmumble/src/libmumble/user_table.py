@@ -3,6 +3,7 @@
 """Provides access to the user table.
 """
 
+from datetime import datetime
 from functools import cached_property
 import logging
 import re
@@ -27,7 +28,7 @@ from .id_scheme import (
     make_user_outbox_uri,
 )
 from .objects_store import generate_user_staging_outbox_key
-from .utils import current_yyyymmdd_hhmmss_ssssss
+from .utils import current_yyyymmdd_hhmmss_ssssss, parse_yyyymmdd_hhmmss_ssssss
 
 
 LOGGER = logging.getLogger('libmumble.user_table')
@@ -47,6 +48,11 @@ class User: # pylint: disable=too-many-instance-attributes
     """PEM representation of the public key."""
     private_key_path: str
     """Path to the private key in Parameter Store on AWS Systems Manager."""
+    follower_count: int
+    following_count: int
+    created_at: datetime
+    updated_at: datetime
+    last_activity_at: datetime
 
     def __init__( # pylint: disable=too-many-arguments
         self,
@@ -58,6 +64,11 @@ class User: # pylint: disable=too-many-instance-attributes
         url: str,
         public_key_pem: str,
         private_key_path: str,
+        follower_count: int,
+        following_count: int,
+        created_at: datetime,
+        updated_at: datetime,
+        last_activity_at: datetime,
         table: Optional['UserTable']=None,
     ):
         """Initializes with given parameters.
@@ -73,6 +84,11 @@ class User: # pylint: disable=too-many-instance-attributes
         self.url = url
         self.public_key_pem = public_key_pem
         self.private_key_path = private_key_path
+        self.follower_count = follower_count
+        self.following_count = following_count
+        self.created_at = created_at
+        self.updated_at = updated_at
+        self.last_activity_at = last_activity_at
         self._table = table
 
     @staticmethod
@@ -83,7 +99,7 @@ class User: # pylint: disable=too-many-instance-attributes
     ) -> 'User':
         """Parses a given item in the user table.
 
-        ``item`` must be a ``dict`` similar to the following (other items are
+        ``item`` must be a ``dict`` similar to the following (other keys are
         ignored):
 
         .. code-block:: python
@@ -95,13 +111,22 @@ class User: # pylint: disable=too-many-instance-attributes
                 'summary': '<summary>',
                 'url': '<url>',
                 'publicKeyPem': '<public-key-pem>',
-                'privateKeyPath': '<private-key-path>'
+                'privateKeyPath': '<private-key-path>',
+                'followerCount': 123,
+                'followingCount': 123,
+                'createdAt': '<yyyy-mm-ddTHH:MM:ss.SSSSSSZ>',
+                'updatedAt': '<yyyy-mm-ddTHH:MM:ss.SSSSSSZ>',
+                'lastActivityAt': '<yyyy-mm-ddTHH:MM:ss.SSSSSSZ>'
             }
 
         :param Optional[UserTable] table: ``UserTable`` that stores the user.
         optional, though, some operation on ``User`` needs this.
 
-        :raises ValueError: if ``item`` is not valid.
+        :raises ValueError: if ``item`` is invalid.
+
+        :raises KeyError: if ``item`` lacks mandatory properties.
+
+        :raises TypeError: if ``item`` is invalid.
         """
         try:
             username = UserTable.parse_partition_key(item['pk'])
@@ -114,6 +139,11 @@ class User: # pylint: disable=too-many-instance-attributes
                 url=item['url'],
                 public_key_pem=item['publicKeyPem'],
                 private_key_path=item['privateKeyPath'],
+                follower_count=int(item['followerCount']),
+                following_count=int(item['followingCount']),
+                created_at=parse_yyyymmdd_hhmmss_ssssss(item['createdAt']),
+                updated_at=parse_yyyymmdd_hhmmss_ssssss(item['updatedAt']),
+                last_activity_at=parse_yyyymmdd_hhmmss_ssssss(item['lastActivityAt']),
                 table=table,
             )
         except KeyError as exc:
@@ -176,17 +206,6 @@ class User: # pylint: disable=too-many-instance-attributes
             after=after,
             before=before,
         )
-
-    @cached_property
-    def follower_count(self) -> int:
-        """Number of the followers of the user.
-
-        :raises AttributeError: if this user is not associated with the user
-        table.
-        """
-        if self._table is None:
-            raise AttributeError('no user table is associated')
-        return self._table.get_user_follower_count(self.username)
 
     @cached_property
     def public_key(self) -> PublicKey:
