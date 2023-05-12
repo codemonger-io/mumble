@@ -2,11 +2,14 @@ import {
   Duration,
   RemovalPolicy,
   Stack,
+  aws_dynamodb as dynamodb,
   aws_events as events,
   aws_iam as iam,
   aws_s3 as s3,
 } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
+
+import type { DeploymentStage } from './deployment-stage';
 
 /** Paht prefix of the inbox. */
 export const INBOX_PREFIX = 'inbox/';
@@ -26,6 +29,12 @@ export const OUTBOX_PREFIX = 'outbox/';
 export const STAGING_OUTBOX_PREFIX = 'staging/';
 /** Path prefix of the objects folder. */
 export const OBJECTS_FOLDER_PREFIX = 'objects/';
+
+/** Properties for {@link ObjectStore}. */
+export interface Props {
+  /** Deployment stage. */
+  readonly deploymentStage: DeploymentStage;
+}
 
 /**
  * CDK construct that provisions the S3 bucket for objects.
@@ -63,6 +72,8 @@ export const OBJECTS_FOLDER_PREFIX = 'objects/';
 export class ObjectStore extends Construct {
   /** S3 bucket for objects. */
   readonly objectsBucket: s3.IBucket;
+  /** DynamoDB table to manage metadata and the history of objects. */
+  readonly objectTable: dynamodb.Table;
   /**
    * EventBridge rule that triggers when a new object is created in the inbox
    * folder in the S3 bucekt.
@@ -91,14 +102,81 @@ export class ObjectStore extends Construct {
    */
   readonly outboxObjectCreatedRule: events.Rule;
 
-  constructor(scope: Construct, id: string) {
+  constructor(scope: Construct, id: string, props: Props) {
     super(scope, id);
 
+    const { deploymentStage } = props;
+
+    // S3 bucket for objects
     this.objectsBucket = new s3.Bucket(this, 'ObjectsBucket', {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       encryption: s3.BucketEncryption.S3_MANAGED,
       eventBridgeEnabled: true,
       removalPolicy: RemovalPolicy.RETAIN,
+    });
+
+    // DynamoDB table to manage metadata and the history of objects
+    const billingSettings = deploymentStage === 'production' ? {
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+    } : {
+      billingMode: dynamodb.BillingMode.PROVISIONED,
+      readCapacity: 2,
+      writeCapacity: 2,
+    };
+    this.objectTable = new dynamodb.Table(this, 'ObjectTable', {
+      // primary key pattern
+      //
+      // 1. metadata of an activity
+      //     - pk: "activity:<username>:<yyyy-mm>"
+      //         - `<yyyy-mm>` is the year and month of the creation
+      //     - sk: "<ddTHH:MM:ss.SSSSSS>:<unique-part>"
+      //         - `<ddTHH:MM:ss.SSSSSS>` is the date and time of the creation
+      //         - `<unique-part>` is the unique part of the activity ID
+      //
+      //    non-key attributes
+      //     - id: "<object-id>"
+      //     - type: "<activity-type>"
+      //     - username: "<username>"
+      //     - category: "<category>"
+      //     - published: "<yyyy-mm-ddTHH:MM:ss>"
+      //     - createdAt: "<yyyy-mm-ddTHH:MM:ss.SSSSSSZ>"
+      //         - may be different from `published`
+      //     - updatedAt: "<yyyy-mm-ddTHH:MM:ss.SSSSSSZ>"
+      //     - isPublic: whether the activity is public
+      //
+      // 2. metadata of an object
+      //     - pk: "object:<username>/<category>/<unique-part>"
+      //         - `<category>` may be "post" or "media"
+      //     - sk: "metadata"
+      //
+      //    non-key attributes
+      //     - id: "<object-id>"
+      //     - type: "<object-type>"
+      //     - username: "<username>"
+      //     - category: "<category>"
+      //     - published: "<yyyy-mm-ddTHH:MM:ss>"
+      //     - createdAt: "<yyyy-mm-ddTHH:MM:ss.SSSSSSZ>"
+      //         - may be different from `published`
+      //     - updatedAt: "<yyyy-mm-ddTHH:MM:ss.SSSSSSZ>"
+      //     - isPublic: whether the object is public
+      //
+      // 3. metadata of a reply to an object (TBC)
+      //     - pk: "object:<username>/<category>/<unique-part>"
+      //     - sk: "reply:<yyyy-mm-ddTHH:MM:ssZ>:<object-hash>"
+      //
+      //    non-key attributes
+      //     - repliedAt: "<yyyy-mm-ddTHH:MM:ssZ>"
+      //     - remoteObjectId: "<remote-object-id>"
+      partitionKey: {
+        name: 'pk',
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'sk',
+        type: dynamodb.AttributeType.STRING,
+      },
+      removalPolicy: RemovalPolicy.RETAIN,
+      ...billingSettings,
     });
 
     // S3 notification events should be sent to the default event bus

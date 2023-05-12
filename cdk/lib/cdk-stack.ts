@@ -44,7 +44,9 @@ export class CdkStack extends Stack {
     const userTable = new UserTable(this, 'UserTable', {
       deploymentStage,
     });
-    const objectStore = new ObjectStore(this, 'ObjectStore');
+    const objectStore = new ObjectStore(this, 'ObjectStore', {
+      deploymentStage,
+    });
     const dispatcher = new Dispatcher(this, 'Dispatcher', {
       deadLetterQueue,
       deploymentStage,
