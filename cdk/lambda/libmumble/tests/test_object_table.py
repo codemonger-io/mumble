@@ -4,7 +4,92 @@
 """
 
 import datetime
-from libmumble.object_table import format_yyyymm
+from libmumble.object_table import (
+    deserialize_activity_key,
+    format_yyyymm,
+    parse_activity_partition_key,
+    parse_yyyymm,
+    serialize_activity_key,
+)
+import pytest
+
+
+def test_parse_activity_partition_key():
+    """Tests ``parse_activity_partition_key`` with a valid key.
+    """
+    pk = 'activity:kemoto:2023-05'
+    expected = ('kemoto', datetime.date(2023, 5, 1))
+    assert parse_activity_partition_key(pk) == expected
+
+
+def test_parse_activity_partition_key_with_non_activity_key():
+    """Tests ``parse_activity_partition_key`` with a non-activity key.
+    """
+    pk = 'object:kemoto/post/00000000-0123'
+    with pytest.raises(ValueError):
+        parse_activity_partition_key(pk)
+
+
+def test_parse_activity_partition_key_with_invalid_month():
+    """Tests ``parse_activity_partition_key`` with an invalid month.
+    """
+    pk = 'activity:kemoto:2023-00'
+    with pytest.raises(ValueError):
+        parse_activity_partition_key(pk)
+
+
+def test_serialize_activity_key():
+    """Tests ``serialize_activity_key`` with a valid key.
+    """
+    key = {
+        'pk': 'activity:kemoto:2023-05',
+        'sk': '15T01:04:00.123456:12345678-1234-abcd',
+    }
+    expected = '2023-05-15T01:04:00.123456:12345678-1234-abcd'
+    assert serialize_activity_key(key) == expected
+
+
+def test_serialize_activity_key_with_invalid_pk():
+    """Tests ``serialize_activity_key`` with an invalid "pk".
+    """
+    key = {
+        'pk': 'object:kemoto/post/12345678-1234-abcd',
+        'sk': '15T01:04:00.123456:12345678-1234-abcd',
+    }
+    with pytest.raises(ValueError):
+        serialize_activity_key(key)
+
+
+def test_serialize_activity_key_with_invalid_sk():
+    """Tests ``serialize_activity_key`` with an invalid "sk".
+    """
+    key = {
+        'pk': 'activity:kemoto:2023-05',
+        'sk': 'reply:2023-05-15T01:12:00.123456Z:abcdefg',
+    }
+    with pytest.raises(ValueError):
+        serialize_activity_key(key)
+
+
+def test_deserialize_activity_key():
+    """Tests ``deserialize_activity_key`` with a valid key.
+    """
+    key = '2023-05-15T01:04:00.123456:12345678-1234-abcd'
+    username = 'kemoto'
+    expected = {
+        'pk': 'activity:kemoto:2023-05',
+        'sk': '15T01:04:00.123456:12345678-1234-abcd',
+    }
+    assert deserialize_activity_key(key, username) == expected
+
+
+def test_deserialize_activity_key_with_invalid_key():
+    """Tests ``deserialize_activity_key`` with an invalid key.
+    """
+    key = '01:16:01.123456 on May 15, 2023:12345678-1234-abcd'
+    username = 'kemoto'
+    with pytest.raises(ValueError):
+        deserialize_activity_key(key, username)
 
 
 def test_format_yyyymm():
@@ -12,3 +97,18 @@ def test_format_yyyymm():
     """
     date = datetime.date(2023, 5, 12)
     assert format_yyyymm(date) == '2023-05'
+
+
+def test_parse_yyyymm():
+    """Tests ``parse_yyyymm`` with "2023-05".
+    """
+    month = '2023-05'
+    assert parse_yyyymm(month) == datetime.date(2023, 5, 1)
+
+
+def test_parse_yyyymm_with_invalid_string():
+    """Tests ``parse_yyyymm`` with "May 2023".
+    """
+    month = 'May 2023'
+    with pytest.raises(ValueError):
+        parse_yyyymm(month)
