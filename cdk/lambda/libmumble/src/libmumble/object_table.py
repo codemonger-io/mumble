@@ -102,6 +102,7 @@ class ObjectTable:
                 yield month
                 month += relativedelta(months=1)
         month_iterator: Iterable[datetime.date]
+        chronological = False
         if before is not None:
             LOGGER.debug('querying activities before %s', before)
             username, before_month = parse_activity_partition_key(before['pk'])
@@ -120,6 +121,7 @@ class ObjectTable:
                     f' {user.username} vs {username}',
                 )
             month_iterator = chrono_iterator(after_month)
+            chronological = True # keeps subsequent queries chronological
         else:
             LOGGER.debug('querying latest activities')
             month_iterator = reverse_chrono_iterator(latest_month)
@@ -131,6 +133,7 @@ class ObjectTable:
                 items_per_query,
                 before=before,
                 after=after,
+                chronological=chronological,
             )
             for activity in activities:
                 yield activity
@@ -145,6 +148,7 @@ class ObjectTable:
         items_per_query: int,
         before: Optional[PrimaryKey]=None,
         after: Optional[PrimaryKey]=None,
+        chronological: Optional[bool]=False,
     ) -> Generator['ActivityMetadata', None, None]:
         """Enumerates activities of a given user in a specified month.
 
@@ -162,9 +166,14 @@ class ObjectTable:
 
         :param Optional[PrimaryKey] after: queries activities after this key.
 
+        :param Optional[bool] chronological: whether activities are
+        chronologically ordered. ignored if either of ``before`` and ``after``
+        is specified.
+
         :returns: generator of metadata of activities. activities are
-        chronologically ordered if ``after`` is specified, otherwise
-        reverse-chronologically ordered.
+        chronologically ordered if ``after`` is specified, or ``chronological``
+        is ``True`` without ``before``, otherwise reverse-chronologically
+        ordered.
 
         :raise TooManyAccessError: if DynamoDB requests exceed the limit.
 
@@ -181,13 +190,16 @@ class ObjectTable:
         )
         filter_expression = Attr('isPublic').eq(True)
         exclusive_start_key: Dict[str, Any] = {
-            'ScanIndexForward': False, # → reverse-chronological
+            'ScanIndexForward': chronological,
         }
         if before is not None:
             exclusive_start_key['ExclusiveStartKey'] = before
+            exclusive_start_key['ScanIndexForward'] = False
+                # forces reverse-chronological
         if after is not None:
             exclusive_start_key['ExclusiveStartKey'] = after
-            exclusive_start_key['ScanIndexForward'] = True # → chronological
+            exclusive_start_key['ScanIndexForward'] = True
+                # forces chronological
         while True:
             LOGGER.debug('querying activities: %s', exclusive_start_key)
             try:
