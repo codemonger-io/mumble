@@ -151,6 +151,78 @@
         }
       }
     },
+    "/users/{username}/outbox": {
+      "get": {
+        "description": "Returns activities of a given user",
+        "parameters": [
+          {
+            "description": "Username whose activities are to be obtained",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "kemoto",
+            "name": "username",
+            "in": "path"
+          },
+          {
+            "description": "Whether to obtain a page of activities",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "example": "true",
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "description": "Obtains activities after this ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "name": "after",
+            "in": "query"
+          },
+          {
+            "description": "Obtains activities before this ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "name": "before",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation",
+            "content": {
+              "application/activity+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MumbleApimumbleapidevelopmentPaginated3378EA85"
+                }
+              },
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MumbleApimumbleapidevelopmentPaginated3378EA85"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "request is malformed"
+          },
+          "404": {
+            "description": "user is not found"
+          },
+          "429": {
+            "description": "there are too many requests"
+          }
+        }
+      }
+    },
     "/users/{username}/followers": {
       "get": {
         "description": "Returns the followers of a given user",
