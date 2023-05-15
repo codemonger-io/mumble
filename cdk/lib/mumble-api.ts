@@ -116,6 +116,33 @@ export class MumbleApi extends Construct {
     );
     userTable.userTable.grantReadData(receiveInboundActivityLambda);
     objectStore.grantPutIntoInbox(receiveInboundActivityLambda);
+    // - returns activites in the outbox of a given user
+    const getOutboxActivitiesLambda = new PythonFunction(
+      this,
+      'GetOutboxActivitiesLambda',
+      {
+        description: 'Returns activities in the outbox of a given user',
+        runtime: lambda.Runtime.PYTHON_3_8,
+        architecture: lambda.Architecture.ARM_64,
+        entry: path.join('lambda', 'get_outbox_activities'),
+        index: 'index.py',
+        handler: 'lambda_handler',
+        layers: [libActivityPub, libCommons, libMumble],
+        environment: {
+          USER_TABLE_NAME: userTable.userTable.tableName,
+          OBJECT_TABLE_NAME: objectStore.objectTable.tableName,
+          OBJECTS_BUCKET_NAME: objectStore.objectsBucket.bucketName,
+          DOMAIN_NAME_PARAMETER_PATH:
+            systemParameters.domainNameParameter.parameterName,
+        },
+        memorySize: 256,
+        timeout: Duration.seconds(20),
+      },
+    );
+    userTable.userTable.grantReadData(getOutboxActivitiesLambda);
+    objectStore.objectTable.grantReadData(getOutboxActivitiesLambda);
+    objectStore.grantGetFromOutbox(getOutboxActivitiesLambda);
+    systemParameters.domainNameParameter.grantRead(getOutboxActivitiesLambda);
     // - returns the follower of a given user
     const getFollowersLambda = new PythonFunction(
       this,
@@ -781,6 +808,92 @@ export class MumbleApi extends Construct {
           {
             statusCode: '500',
             description: 'internal server error',
+          },
+        ],
+      },
+    );
+    // /users/{username}/outbox
+    const outbox = user.addResource('outbox');
+    // - GET: returns activities of a given user
+    outbox.addMethod(
+      'GET',
+      new apigateway.LambdaIntegration(getOutboxActivitiesLambda, {
+        proxy: false,
+        passthroughBehavior: apigateway.PassthroughBehavior.NEVER,
+        requestTemplates: {
+          'application/json': composeMappingTemplate([
+            mappingTemplates.username,
+            mappingTemplates.page,
+            mappingTemplates.after,
+            mappingTemplates.before,
+          ]),
+        },
+        integrationResponses: [
+          catchErrorsWith(400, 'BadRequestError', 'CorruptedDataError'),
+          catchErrorsWith(404, 'NotFoundError'),
+          catchErrorsWith(429, 'TooManyAccessError'),
+          {
+            statusCode: '200',
+          },
+        ],
+      }),
+      {
+        operationName: 'getActivities',
+        description: 'Returns activities of a given user',
+        requestParameterSchemas: {
+          'method.request.path.username': {
+            description: 'Username whose activities are to be obtained',
+            required: true,
+            schema: {
+              type: 'string',
+            },
+            example: 'kemoto',
+          },
+          'method.request.querystring.page': {
+            description: 'Whether to obtain a page of activities',
+            required: false,
+            schema: {
+              type: 'boolean',
+              default: false,
+            },
+            example: 'true',
+          },
+          'method.request.querystring.after': {
+            description: 'Obtains activities after this ID',
+            required: false,
+            schema: {
+              type: 'string',
+            },
+          },
+          'method.request.querystring.before': {
+            description: 'Obtains activities before this ID',
+            required: false,
+            schema: {
+              type: 'string',
+            },
+          },
+        },
+        requestValidator,
+        methodResponses: [
+          {
+            statusCode: '200',
+            description: 'successful operation',
+            responseModels: {
+              'application/activity+json': paginatedModel,
+              'application/ld+json': paginatedModel,
+            },
+          },
+          {
+            statusCode: '400',
+            description: 'request is malformed',
+          },
+          {
+            statusCode: '404',
+            description: 'user is not found',
+          },
+          {
+            statusCode: '429',
+            description: 'there are too many requests',
           },
         ],
       },
