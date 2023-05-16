@@ -58,6 +58,13 @@ export interface Props {
  * Every user `{username}` has a dedicated folder in the staging outbox folder:
  * `staging/users/{username}`
  *
+ * #### Outbox
+ *
+ * The outbox (`outbox`) folder stores activities made by a specifi user.
+ *
+ * Every user `{username}` has a dedicated folder in the oubtox folder:
+ * `outbox/users/{username}`
+ *
  * #### Objects
  *
  * The objects (`objects`) folder stores non-activity objects.
@@ -101,6 +108,15 @@ export class ObjectStore extends Construct {
    * Please add a target to handle events.
    */
   readonly outboxObjectCreatedRule: events.Rule;
+  /**
+   * EventBridge rule that triggers when a new object is created in the objects
+   * folder in the S3 bucket.
+   *
+   * @remarks
+   *
+   * Please add a target to handle events.
+   */
+  readonly objectsFolderObjectCreatedRule: events.Rule;
 
   constructor(scope: Construct, id: string, props: Props) {
     super(scope, id);
@@ -220,6 +236,17 @@ export class ObjectStore extends Construct {
         eventPattern: this.objectCreatedEventPattern(OUTBOX_PREFIX),
       },
     );
+    // - triggers when a new object is created in the objects folder
+    this.objectsFolderObjectCreatedRule = new events.Rule(
+      this,
+      'ObjectsFolderObjectCreatedRule',
+      {
+        description: 'Triggers when a new object is created in the objects folder in the S3 bucket',
+        eventBus,
+        enabled: true,
+        eventPattern: this.objectCreatedEventPattern(OBJECTS_FOLDER_PREFIX),
+      },
+    );
   }
 
   /** Grants a given principal "Put" access to the inbox. */
@@ -255,6 +282,11 @@ export class ObjectStore extends Construct {
   /** Grants a given principal "Put" access to the objects folder. */
   grantPutIntoObjectsFolder(grantee: iam.IGrantable): iam.Grant {
     return this.objectsBucket.grantPut(grantee, OBJECTS_FOLDER_PREFIX + '*');
+  }
+
+  /** Grants a given principal "Get" access from the objects folder. */
+  grantGetFromObjectsFolder(grantee: iam.IGrantable): iam.Grant {
+    return this.objectsBucket.grantRead(grantee, OBJECTS_FOLDER_PREFIX + '*');
   }
 
   // creates an `EventPattern` that triggers when an object is created in
