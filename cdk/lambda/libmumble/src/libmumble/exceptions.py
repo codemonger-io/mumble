@@ -57,6 +57,11 @@ class TransientError(MumbleBaseException):
     """
 
 
+class DuplicateItemError(MumbleBaseException):
+    """Raised if an item is duplicated.
+    """
+
+
 class TooManyAccessError(TransientError):
     """Raised if there are too many requests.
     """

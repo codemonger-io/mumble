@@ -13,7 +13,7 @@ from boto3.dynamodb.conditions import Attr, Key
 from dateutil.relativedelta import relativedelta
 from libactivitypub.activity import Activity
 from libactivitypub.data_objects import Note
-from .exceptions import TooManyAccessError
+from .exceptions import DuplicateItemError, TooManyAccessError
 from .id_scheme import parse_user_activity_id, parse_user_post_id
 from .objects_store import (
     load_activity,
@@ -22,7 +22,11 @@ from .objects_store import (
     make_user_post_object_key,
 )
 from .user_table import User
-from .utils import parse_yyyymmdd_hhmmss, parse_yyyymmdd_hhmmss_ssssss
+from .utils import (
+    current_yyyymmdd_hhmmss_ssssss,
+    parse_yyyymmdd_hhmmss,
+    parse_yyyymmdd_hhmmss_ssssss,
+)
 
 
 LOGGER = logging.getLogger('libmumble.object_table')
@@ -230,6 +234,45 @@ class ObjectTable:
                 break # all the items were exhausted
             exclusive_start_key['ExclusiveStartKey'] = last_evaluated_key
 
+    def put_post(self, post: Note):
+        """Puts a given post (note) into the object table.
+
+        :raises DuplicateItemError: if ``post`` is already in the object table.
+
+        :raises TooManyAccessError: if access to the DynamoDB table exceeds
+        the limit.
+        """
+        _, username, unique_part = parse_user_post_id(post.id)
+        key = make_user_post_key(username, unique_part)
+        created_at = current_yyyymmdd_hhmmss_ssssss()
+        updated_at = created_at
+        try:
+            res = self._table.put_item(
+                Item={
+                    **key,
+                    'id': post.id,
+                    'type': post.type,
+                    'username': username,
+                    'category': 'post',
+                    'published': post.published,
+                    'createdAt': created_at,
+                    'updatedAt': updated_at,
+                    'isPublic': post.is_public(),
+                },
+                ConditionExpression=Attr('pk').not_exists(),
+            )
+            LOGGER.debug('succeeded to put post: %s', res)
+        except self.ConditionalCheckFailedException as exc:
+            raise DuplicateItemError(
+                'post already exists. use `update_post` instead',
+            ) from exc
+        except self.ProvisionedThroughputExceededException as exc:
+            raise TooManyAccessError(
+                'provisioned DynamoDB table throughput exceeded',
+            ) from exc
+        except self.RequestLimitExceeded as exc:
+            raise TooManyAccessError('too many requests') from exc
+
     def find_user_post(
         self,
         username: str,
@@ -285,6 +328,12 @@ class ObjectTable:
         """boto3 exceptions.
         """
         return self._table.meta.client.exceptions
+
+    @property
+    def ConditionalCheckFailedException(self): # pylint: disable=invalid-name
+        """boto3's ConditionalCheckFailedException.
+        """
+        return self.exceptions.ConditionalCheckFailedException
 
     @property
     def ProvisionedThroughputExceededException(self): # pylint: disable=invalid-name
