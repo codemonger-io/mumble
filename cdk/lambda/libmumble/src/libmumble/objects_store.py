@@ -93,6 +93,12 @@ def make_user_outbox_key(username: str, unique_part: str) -> str:
     return f'outbox/users/{username}/{unique_part}.json'
 
 
+def make_user_post_object_key(username: str, unique_part: str) -> str:
+    """Makes the object key for user's post.
+    """
+    return f'objects/users/{username}/posts/{unique_part}.json'
+
+
 def load_json(s3_client, object_key: ObjectKey) -> Dict[str, Any]:
     """Loads a JSON object in an S3 bucket.
 
