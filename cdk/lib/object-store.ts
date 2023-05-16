@@ -138,14 +138,14 @@ export class ObjectStore extends Construct {
       //     - type: "<activity-type>"
       //     - username: "<username>"
       //     - category: "<category>"
-      //     - published: "<yyyy-mm-ddTHH:MM:ss>"
+      //     - published: "<yyyy-mm-ddTHH:MM:ssZ>"
       //     - createdAt: "<yyyy-mm-ddTHH:MM:ss.SSSSSSZ>"
       //         - may be different from `published`
       //     - updatedAt: "<yyyy-mm-ddTHH:MM:ss.SSSSSSZ>"
       //     - isPublic: whether the activity is public
       //
       // 2. metadata of an object
-      //     - pk: "object:<username>/<category>/<unique-part>"
+      //     - pk: "object:<username>:<category>:<unique-part>"
       //         - `<category>` may be "post" or "media"
       //     - sk: "metadata"
       //
@@ -154,14 +154,14 @@ export class ObjectStore extends Construct {
       //     - type: "<object-type>"
       //     - username: "<username>"
       //     - category: "<category>"
-      //     - published: "<yyyy-mm-ddTHH:MM:ss>"
+      //     - published: "<yyyy-mm-ddTHH:MM:ssZ>"
       //     - createdAt: "<yyyy-mm-ddTHH:MM:ss.SSSSSSZ>"
       //         - may be different from `published`
       //     - updatedAt: "<yyyy-mm-ddTHH:MM:ss.SSSSSSZ>"
       //     - isPublic: whether the object is public
       //
       // 3. metadata of a reply to an object (TBC)
-      //     - pk: "object:<username>/<category>/<unique-part>"
+      //     - pk: "object:<username>:<category>:<unique-part>"
       //     - sk: "reply:<yyyy-mm-ddTHH:MM:ssZ>:<object-hash>"
       //
       //    non-key attributes

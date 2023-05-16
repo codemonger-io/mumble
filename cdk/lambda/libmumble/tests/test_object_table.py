@@ -25,7 +25,7 @@ def test_parse_activity_partition_key():
 def test_parse_activity_partition_key_with_non_activity_key():
     """Tests ``parse_activity_partition_key`` with a non-activity key.
     """
-    pk = 'object:kemoto/post/00000000-0123'
+    pk = 'object:kemoto:post:00000000-0123'
     with pytest.raises(ValueError):
         parse_activity_partition_key(pk)
 
@@ -53,7 +53,7 @@ def test_serialize_activity_key_with_invalid_pk():
     """Tests ``serialize_activity_key`` with an invalid "pk".
     """
     key = {
-        'pk': 'object:kemoto/post/12345678-1234-abcd',
+        'pk': 'object:kemoto:post:12345678-1234-abcd',
         'sk': '15T01:04:00.123456:12345678-1234-abcd',
     }
     with pytest.raises(ValueError):
