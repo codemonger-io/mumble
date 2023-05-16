@@ -49,6 +49,11 @@ export class Dispatcher extends Construct {
    */
   private translateOutboundObjectLambda: lambda.IFunction;
   /**
+   * Lambda function that pushes a staged object to the object table.
+   * Implements a state in a workflow.
+   */
+  private pushStagedObjectLambda: lambda.IFunction;
+  /**
    * Lambda function that expands recipients of a staged activity in the outbox.
    * Implements a state in a workflow.
    */
@@ -132,6 +137,33 @@ export class Dispatcher extends Construct {
     systemParameters.domainNameParameter.grantRead(
       this.translateOutboundObjectLambda,
     );
+    // - pushes a staged object into the object table
+    this.pushStagedObjectLambda = new PythonFunction(
+      this,
+      'PushStagedObjectLambda',
+      {
+        description: 'Pushes a staged object into the object table',
+        runtime: lambda.Runtime.PYTHON_3_8,
+        architecture: lambda.Architecture.ARM_64,
+        entry: path.join('lambda', 'states', 'push_staged_object'),
+        index: 'index.py',
+        handler: 'lambda_handler',
+        layers: [libActivityPub, libCommons, libMumble],
+        environment: {
+          OBJECT_TABLE_NAME: objectStore.objectTable.tableName,
+          OBJECTS_BUCKET_NAME: objectStore.objectsBucket.bucketName,
+          DOMAIN_NAME_PARAMETER_PATH:
+            systemParameters.domainNameParameter.parameterName,
+        },
+        memorySize: 256,
+        timeout: Duration.seconds(30),
+      },
+    );
+    objectStore.objectTable.grantReadWriteData(this.pushStagedObjectLambda);
+    objectStore.grantGetFromObjectsFolder(this.pushStagedObjectLambda);
+    systemParameters.domainNameParameter.grantRead(
+      this.pushStagedObjectLambda,
+    );
     // - expands recipients
     this.expandRecipientsLambda = new PythonFunction(
       this,
@@ -209,6 +241,19 @@ export class Dispatcher extends Construct {
     objectStore.stagingOutboxObjectCreatedRule.addTarget(
       new targets.SfnStateMachine(
         translateOutboundObjectWorkflow,
+        {
+          input: events.RuleTargetInput.fromObject({
+            'object': s3ObjectInput,
+          }),
+          deadLetterQueue,
+        },
+      ),
+    );
+    // - pushes a staged object into the object table
+    const pushStagedObjectWorkflow = this.createPushStagedObjectWorkflow();
+    objectStore.objectsFolderObjectCreatedRule.addTarget(
+      new targets.SfnStateMachine(
+        pushStagedObjectWorkflow,
         {
           input: events.RuleTargetInput.fromObject({
             'object': s3ObjectInput,
@@ -299,6 +344,40 @@ export class Dispatcher extends Construct {
     // builds the state machine
     return new stepfunctions.StateMachine(this, workflowId, {
       definition: invokeTranslateOutboundObject,
+      timeout: Duration.minutes(5),
+    });
+  }
+
+  // Creates a workflow that pushes a staged object into the object table.
+  //
+  // The workflow supposes the input is like:
+  //
+  // {
+  //   object: {
+  //     bucket: '<bucket-name>',
+  //     key: '<object-key>'
+  //   }
+  // }
+  private createPushStagedObjectWorkflow(): stepfunctions.IStateMachine {
+    const { deploymentStage } = this.props;
+    const workflowId = `PushStagedObject_${deploymentStage}`;
+
+    // defines states
+    // - pushes a staged object into the object table
+    const invokePushStagedObject = new sfn_tasks.LambdaInvoke(
+      this,
+      `PushStagedObject_${workflowId}`,
+      {
+        lambdaFunction: this.pushStagedObjectLambda,
+        comment: 'Invokes PushStagedObjectLambda',
+        payloadResponseOnly: true,
+        taskTimeout: stepfunctions.Timeout.duration(Duration.seconds(30)),
+      },
+    );
+
+    // builds the state machine
+    return new stepfunctions.StateMachine(this, workflowId, {
+      definition: invokePushStagedObject,
       timeout: Duration.minutes(5),
     });
   }
