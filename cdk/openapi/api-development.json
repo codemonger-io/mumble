@@ -219,6 +219,9 @@
           },
           "429": {
             "description": "there are too many requests"
+          },
+          "500": {
+            "description": "internal server error"
           }
         }
       }
@@ -290,6 +293,73 @@
           },
           "404": {
             "description": "user is not found"
+          }
+        }
+      }
+    },
+    "/users/{username}/posts": {},
+    "/users/{username}/posts/{uniquePart}": {
+      "parameters": [
+        {
+          "name": "uniquePart",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "description": "Returns an object representing a post",
+        "parameters": [
+          {
+            "description": "Username whose post is to be obtained",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "kemoto",
+            "name": "username",
+            "in": "path"
+          },
+          {
+            "description": "Unique part of the ID of the post object to be obtained",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "01234567-89ab-cdef-0123-456789abcdef",
+            "name": "uniquePart",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation",
+            "content": {
+              "application/activity+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MumbleApimumbleapidevelopmentObject9AEA00B2"
+                }
+              },
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MumbleApimumbleapidevelopmentObject9AEA00B2"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "request is malformed"
+          },
+          "404": {
+            "description": "user or post is not found"
+          },
+          "429": {
+            "description": "there are too many requests"
+          },
+          "500": {
+            "description": "internal server error"
           }
         }
       }
