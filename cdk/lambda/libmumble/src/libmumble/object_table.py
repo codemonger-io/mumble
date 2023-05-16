@@ -3,6 +3,7 @@
 """Provides access to the object table.
 """
 
+from abc import ABC
 import datetime
 from functools import cached_property
 import logging
@@ -11,9 +12,15 @@ from typing import Any, Dict, Generator, Iterable, Optional, Tuple, TypedDict
 from boto3.dynamodb.conditions import Attr, Key
 from dateutil.relativedelta import relativedelta
 from libactivitypub.activity import Activity
+from libactivitypub.data_objects import Note
 from .exceptions import TooManyAccessError
-from .id_scheme import parse_user_activity_id
-from .objects_store import load_activity, make_user_outbox_key
+from .id_scheme import parse_user_activity_id, parse_user_post_id
+from .objects_store import (
+    load_activity,
+    load_object,
+    make_user_outbox_key,
+    make_user_post_object_key,
+)
 from .user_table import User
 from .utils import parse_yyyymmdd_hhmmss, parse_yyyymmdd_hhmmss_ssssss
 
@@ -217,11 +224,37 @@ class ObjectTable:
                 raise TooManyAccessError('too many requests') from exc
             items = res['Items']
             for item in items:
-                yield ActivityMetadata.parse_item(item)
+                yield ActivityMetadata(item, table=self._table)
             last_evaluated_key = res.get('LastEvaluatedKey')
             if not last_evaluated_key:
                 break # all the items were exhausted
             exclusive_start_key['ExclusiveStartKey'] = last_evaluated_key
+
+    def find_user_post(
+        self,
+        username: str,
+        unique_part: str,
+    ) -> Optional['PostMetadata']:
+        """Finds a specified post of a given user.
+
+        :returns: ``None`` if the specified post does not exist.
+
+        :raises TooManyAccessError: if the DynamoDB access exceeds the limit.
+        """
+        try:
+            res = self._table.get_item(
+                Key=make_user_post_key(username, unique_part),
+            )
+            item = res.get('Item')
+            if item is None:
+                return None
+            return PostMetadata(item, table=self._table)
+        except self.ProvisionedThroughputExceededException as exc:
+            raise TooManyAccessError(
+                'exceeded provisioned DynamoDB table throughput',
+            ) from exc
+        except self.RequestLimitExceeded as exc:
+            raise TooManyAccessError('too many API requests') from exc
 
     @staticmethod
     def make_monthly_user_activity_partition_key(
@@ -251,7 +284,7 @@ class ObjectTable:
     def exceptions(self):
         """boto3 exceptions.
         """
-        return self._table.meta.client.excetions
+        return self._table.meta.client.exceptions
 
     @property
     def ProvisionedThroughputExceededException(self): # pylint: disable=invalid-name
@@ -266,8 +299,8 @@ class ObjectTable:
         return self.exceptions.RequestLimitExceeded
 
 
-class ActivityMetadata:
-    """Metadta of an activity.
+class ObjectMetadata(ABC):
+    """Base class for metadata of an object.
     """
     pk: str
     sk: str
@@ -278,53 +311,23 @@ class ActivityMetadata:
     published: datetime.datetime
     created_at: datetime.datetime
     updated_at: datetime.datetime
-    is_public: bool
 
     def __init__(
         self,
-        pk: str, # pylint: disable=invalid-name
-        sk: str, # pylint: disable=invalid-name
-        id: str, # pylint: disable=invalid-name, redefined-builtin
-        type: str, # pylint: disable=redefined-builtin
-        username: str,
-        category: str,
-        published: datetime.datetime,
-        created_at: datetime.datetime,
-        updated_at: datetime.datetime,
-        is_public: bool,
-        table: Optional[ObjectTable]=None,
-    ):
-        """Initializes with properties.
-        """
-        self.pk = pk # pylint: disable=invalid-name
-        self.sk = sk # pylint: disable=invalid-name
-        self.id = id # pylint: disable=invalid-name
-        self.type = type
-        self.username = username
-        self.category = category
-        self.published = published
-        self.created_at = created_at
-        self.updated_at = updated_at
-        self.is_public = is_public
-        self._table = table
-
-    @staticmethod
-    def parse_item(
         item: Dict[str, Any],
         table: Optional[ObjectTable]=None,
-    ) -> 'ActivityMetadata':
-        """Parses a given item in a DynamoDB table.
+    ):
+        """Initializes by parsing a given item in the DynamoDB table for
+        objects.
 
-        ``item`` must be a ``dict`` similar to the following (other keys may
-        be included but are ignored):
+        ``item`` must be a ``dict`` similar to the following:
 
         .. code-block:: python
 
             {
-                'pk': 'activity:<username>:<yyyy-mm>',
-                'sk': '<ddTHH:MM:ss.SSSSSS>:<unique-part>',
-                'id': '<object-id>',
-                'type': '<activity-type>',
+                'pk': '<partition-key>',
+                'sk': '<sort-key>',
+                'type': '<object-type>',
                 'username': '<username>',
                 'category': '<category>',
                 'published': '<yyyy-mm-ddTHH:MM:ssZ>',
@@ -333,42 +336,46 @@ class ActivityMetadata:
                 'isPublic': True
             }
 
-        :raises KeyError: if ``item`` lacks mandatory properties.
+        :param Optional[ObjectTable] table: optional table that manages the
+        item.
+
+        :raises KeyError: if ``item`` lacks any mandatory property.
 
         :raises ValueError: if ``item`` is invalid.
-
-        :raises TypeError: if ``item`` is invalid.
         """
-        return ActivityMetadata(
-            pk=item['pk'],
-            sk=item['sk'],
-            id=item['id'],
-            type=item['type'],
-            username=item['username'],
-            category=item['category'],
-            published=parse_yyyymmdd_hhmmss(item['published']),
-            created_at=parse_yyyymmdd_hhmmss_ssssss(item['createdAt']),
-            updated_at=parse_yyyymmdd_hhmmss_ssssss(item['updatedAt']),
-            is_public=bool(item['isPublic']),
-            table=table,
-        )
-
-    @cached_property
-    def unique_part(self) -> str:
-        """Unique part of the activity ID.
-        """
-        _, _, unique_part = parse_user_activity_id(self.id)
-        return unique_part
+        self.pk = item['pk'] # pylint: disable=invalid-name
+        self.sk = item['sk'] # pylint: disable=invalid-name
+        self.id = item['id'] # pylint: disable=invalid-name
+        self.type = item['type']
+        self.username = item['username']
+        self.category = item['category']
+        self.published = parse_yyyymmdd_hhmmss(item['published'])
+        self.created_at = parse_yyyymmdd_hhmmss_ssssss(item['createdAt'])
+        self.updated_at = parse_yyyymmdd_hhmmss_ssssss(item['updatedAt'])
+        self.is_public = bool(item['isPublic'])
+        self._table = table
 
     @property
     def primary_key(self) -> PrimaryKey:
-        """Returns the primary key in the object table to identify this
-        activity.
+        """Primary key of the object.
         """
         return {
             'pk': self.pk,
             'sk': self.sk,
         }
+
+
+class ActivityMetadata(ObjectMetadata):
+    """Metadta of an activity.
+    """
+    @cached_property
+    def unique_part(self) -> str:
+        """Unique part of the activity ID.
+
+        :raises ValueError: if the activity ID is invalid.
+        """
+        _, _, unique_part = parse_user_activity_id(self.id)
+        return unique_part
 
     def resolve(self, s3_client, objects_bucket_name: str) -> Activity:
         """Resolves the activity object.
@@ -389,6 +396,39 @@ class ActivityMetadata:
             'bucket': objects_bucket_name,
             'key': make_user_outbox_key(self.username, self.unique_part),
         })
+
+
+class PostMetadata(ObjectMetadata):
+    """Metadata of a post object.
+    """
+    @cached_property
+    def unique_part(self) -> str:
+        """Unique part of the post ID.
+
+        :raises ValueError: if the post ID is invalid.
+        """
+        _, _, unique_part = parse_user_post_id(self.id)
+        return unique_part
+
+    def resolve(self, s3_client, objects_bucket_name: str) -> Note:
+        """Resolves the post object.
+
+        :param boto3.client('s3') s3_client: S3 client that access the S3
+        bucket for objects.
+
+        :param str objects_bucket_name: name of the S3 bucket that stores
+        objects.
+
+        :raises NotFoundError: if the post object is not found.
+
+        :raises ValueError: if the loaded object is invalid.
+
+        :raises TypeError: if the loaded object is invalid.
+        """
+        return load_object(s3_client, {
+            'bucket': objects_bucket_name,
+            'key': make_user_post_object_key(self.username, self.unique_part),
+        }).cast(Note)
 
 
 def parse_activity_partition_key(
@@ -474,6 +514,23 @@ def deserialize_activity_key(key: str, username: str) -> PrimaryKey:
         'pk': f'activity:{username}:{year_month}',
         'sk': f'{date_time}:{unique_part}',
     }
+
+
+def make_user_post_key(username: str, unique_part: str) -> PrimaryKey:
+    """Creates the primary key to identify a specified post object of a given
+    user in the object table.
+    """
+    return {
+        'pk': make_user_post_partition_key(username, unique_part),
+        'sk': 'metadata',
+    }
+
+
+def make_user_post_partition_key(username: str, unique_part: str) -> str:
+    """Creates the partition key to look up a specified post object of a given
+    user in the object table.
+    """
+    return f'object:{username}:post:{unique_part}'
 
 
 def format_yyyymm(month: datetime.date) -> str:
