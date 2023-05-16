@@ -166,6 +166,31 @@ export class MumbleApi extends Construct {
     );
     userTable.userTable.grantReadData(getFollowersLambda);
     systemParameters.domainNameParameter.grantRead(getFollowersLambda);
+    // - returns a specified post object of a given user
+    const getPostLambda = new PythonFunction(
+      this,
+      'GetPostLambda',
+      {
+        description: 'Returns a specified object of a given user',
+        runtime: lambda.Runtime.PYTHON_3_8,
+        architecture: lambda.Architecture.ARM_64,
+        entry: path.join('lambda', 'get_post'),
+        index: 'index.py',
+        handler: 'lambda_handler',
+        layers: [libActivityPub, libCommons, libMumble],
+        environment: {
+          OBJECT_TABLE_NAME: objectStore.objectTable.tableName,
+          OBJECTS_BUCKET_NAME: objectStore.objectsBucket.bucketName,
+          DOMAIN_NAME_PARAMETER_PATH:
+            systemParameters.domainNameParameter.parameterName,
+        },
+        memorySize: 256,
+        timeout: Duration.seconds(20),
+      },
+    );
+    objectStore.objectTable.grantReadData(getPostLambda);
+    objectStore.grantGetFromObjectsFolder(getPostLambda);
+    systemParameters.domainNameParameter.grantRead(getPostLambda);
 
     // the API
     this.api = new RestApiWithSpec(this, `mumble-api-${deploymentStage}`, {
@@ -532,6 +557,12 @@ export class MumbleApi extends Construct {
     );
 
     // mapping template components
+    function urlParameterField(name: string): MappingTemplateItem {
+      return [
+        name,
+        `"$util.escapeJavaScript($util.urlDecode($input.params('${name}'))).replaceAll("\\'", "'")"`,
+      ];
+    }
     const mappingTemplates: { [name: string]: MappingTemplateItem } = {
       resource: [
         'resource',
@@ -541,6 +572,7 @@ export class MumbleApi extends Construct {
         'username',
         `"$util.escapeJavaScript($util.urlDecode($input.params('username'))).replaceAll("\\'", "'")"`,
       ],
+      uniquePart: urlParameterField('uniquePart'),
       signature: [
         'signature',
         `"$util.escapeJavaScript($input.params('signature')).replaceAll("\\'", "'")"`,
@@ -829,9 +861,10 @@ export class MumbleApi extends Construct {
           ]),
         },
         integrationResponses: [
-          catchErrorsWith(400, 'BadRequestError', 'CorruptedDataError'),
+          catchErrorsWith(400, 'BadRequestError'),
           catchErrorsWith(404, 'NotFoundError'),
           catchErrorsWith(429, 'TooManyAccessError'),
+          catchErrorsWith(500, 'CorruptedDataError'),
           {
             statusCode: '200',
           },
@@ -894,6 +927,10 @@ export class MumbleApi extends Construct {
           {
             statusCode: '429',
             description: 'there are too many requests',
+          },
+          {
+            statusCode: '500',
+            description: 'internal server error',
           },
         ],
       },
@@ -977,6 +1014,82 @@ export class MumbleApi extends Construct {
           {
             statusCode: '404',
             description: 'user is not found',
+          },
+        ],
+      },
+    );
+    // /users/{username}/posts
+    const posts = user.addResource('posts');
+    // /users/{username}/posts/{uniquePart}
+    const post = posts.addResource('{uniquePart}')
+    // - GET: returns a specified post object
+    post.addMethod(
+      'GET',
+      new apigateway.LambdaIntegration(getPostLambda, {
+        proxy: false,
+        passthroughBehavior: apigateway.PassthroughBehavior.NEVER,
+        requestTemplates: {
+          'application/json': composeMappingTemplate([
+            mappingTemplates.username,
+            mappingTemplates.uniquePart,
+          ]),
+        },
+        integrationResponses: [
+          catchErrorsWith(400, 'BadRequestError'),
+          catchErrorsWith(404, 'NotFoundError'),
+          catchErrorsWith(429, 'TooManyAccessError'),
+          catchErrorsWith(500, 'CorruptedDataError'),
+          {
+            statusCode: '200',
+          },
+        ],
+      }),
+      {
+        operationName: 'getPost',
+        description: 'Returns an object representing a post',
+        requestParameterSchemas: {
+          'method.request.path.username': {
+            description: 'Username whose post is to be obtained',
+            required: true,
+            schema: {
+              type: 'string',
+            },
+            example: 'kemoto',
+          },
+          'method.request.path.uniquePart': {
+            description: "Unique part of the ID of the post object to be obtained",
+            required: true,
+            schema: {
+              type: 'string',
+            },
+            example: '01234567-89ab-cdef-0123-456789abcdef',
+          },
+        },
+        requestValidator,
+        methodResponses: [
+          {
+            statusCode: '200',
+            description: 'successful operation',
+            responseModels: {
+              'application/activity+json': objectModel,
+              'application/ld+json': objectModel,
+            },
+          },
+          {
+            statusCode: '400',
+            description: 'request is malformed',
+          },
+          {
+            statusCode: '404',
+            description: 'user or post is not found',
+          },
+          {
+            statusCode: '429',
+            description: 'there are too many requests',
+          },
+          {
+            statusCode: '500',
+            description: 'internal server error',
           },
         ],
       },
