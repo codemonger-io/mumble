@@ -152,8 +152,6 @@ export class Dispatcher extends Construct {
         environment: {
           OBJECT_TABLE_NAME: objectStore.objectTable.tableName,
           OBJECTS_BUCKET_NAME: objectStore.objectsBucket.bucketName,
-          DOMAIN_NAME_PARAMETER_PATH:
-            systemParameters.domainNameParameter.parameterName,
         },
         memorySize: 256,
         timeout: Duration.seconds(30),
@@ -161,9 +159,6 @@ export class Dispatcher extends Construct {
     );
     objectStore.objectTable.grantReadWriteData(this.pushStagedObjectLambda);
     objectStore.grantGetFromObjectsFolder(this.pushStagedObjectLambda);
-    systemParameters.domainNameParameter.grantRead(
-      this.pushStagedObjectLambda,
-    );
     // - expands recipients
     this.expandRecipientsLambda = new PythonFunction(
       this,

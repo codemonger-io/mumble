@@ -5,8 +5,6 @@
 You have to specify the following environment variables:
 * ``OBJECT_TABLE_NAME``: name of the DynamoDB table that manages objects.
 * ``OBJECTS_BUCKET_NAME``: name of the S3 bucket that stores objects.
-* ``DOMAIN_NAME_PARAMETER_PATH``: path to the parameter storing the domain name
-  in Parameter Store on AWS Systems Manager.
 """
 
 import logging
@@ -16,13 +14,10 @@ from libactivitypub.data_objects import Note
 from libactivitypub.objects import DictObject
 from libmumble.object_table import ObjectTable
 from libmumble.objects_store import dict_as_object_key, load_object
-from libmumble.parameters import get_domain_name
 
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.DEBUG)
-
-DOMAIN_NAME = get_domain_name(boto3.client('ssm'))
 
 OBJECTS_BUCKET_NAME = os.environ['OBJECTS_BUCKET_NAME']
 
