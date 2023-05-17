@@ -181,8 +181,6 @@ export class MumbleApi extends Construct {
         environment: {
           OBJECT_TABLE_NAME: objectStore.objectTable.tableName,
           OBJECTS_BUCKET_NAME: objectStore.objectsBucket.bucketName,
-          DOMAIN_NAME_PARAMETER_PATH:
-            systemParameters.domainNameParameter.parameterName,
         },
         memorySize: 256,
         timeout: Duration.seconds(20),
@@ -190,7 +188,6 @@ export class MumbleApi extends Construct {
     );
     objectStore.objectTable.grantReadData(getPostLambda);
     objectStore.grantGetFromObjectsFolder(getPostLambda);
-    systemParameters.domainNameParameter.grantRead(getPostLambda);
 
     // the API
     this.api = new RestApiWithSpec(this, `mumble-api-${deploymentStage}`, {
