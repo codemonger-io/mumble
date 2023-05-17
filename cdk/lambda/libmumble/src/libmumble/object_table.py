@@ -24,6 +24,8 @@ from .objects_store import (
 from .user_table import User
 from .utils import (
     current_yyyymmdd_hhmmss_ssssss,
+    format_yyyymmdd_hhmmss,
+    format_yyyymmdd_hhmmss_ssssss,
     parse_yyyymmdd_hhmmss,
     parse_yyyymmdd_hhmmss_ssssss,
 )
@@ -54,6 +56,53 @@ class ObjectTable:
         wrapped.
         """
         self._table = table
+
+    def put_activity(self, activity: Activity):
+        """Puts a given activity into the object table.
+
+        :raises ValueError: if ``activity.id`` is invalid.
+
+        :raises DuplicateItemError: if the activity is already in the object
+        table.
+
+        :raises TooManyAccessError: if access to the DynamoDB table exceeds
+        the limit.
+        """
+        _, username, unique_part = parse_user_activity_id(activity.id)
+        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        created_at = format_yyyymmdd_hhmmss_ssssss(now)
+        updated_at = created_at
+        if hasattr(activity, 'published'):
+            published = activity.published
+        else:
+            published = format_yyyymmdd_hhmmss(now)
+        key = make_activity_key(username, unique_part, now)
+        try:
+            res = self._table.put_item(
+                Item={
+                    **key,
+                    'id': activity.id,
+                    'type': activity.type,
+                    'username': username,
+                    'category': 'activity',
+                    'published': published,
+                    'createdAt': created_at,
+                    'updatedAt': updated_at,
+                    'isPublic': activity.is_public(),
+                },
+                ConditionExpression=Attr('pk').not_exists(),
+            )
+            LOGGER.debug('succeeded to put activity: %s', res)
+        except self.ConditionalCheckFailedException as exc:
+            raise DuplicateItemError(
+                'activity already exists. use `activate_post` instead'
+            ) from exc
+        except self.ProvisionedThroughputExceededException as exc:
+            raise TooManyAccessError(
+                'provisioned DynamoDB table throughput exceeded',
+            ) from exc
+        except self.RequestLimitExceeded as exc:
+            raise TooManyAccessError('too many API requests') from exc
 
     def enumerate_user_activities(
         self,
@@ -480,6 +529,30 @@ class PostMetadata(ObjectMetadata):
         }).cast(Note)
 
 
+def make_activity_key(
+    username: str,
+    unique_part: str,
+    created_at: datetime.datetime,
+) -> PrimaryKey:
+    """Creates the primary key for an activity in the object table.
+
+    Returns a ``dict`` similar to the following:
+
+    .. code-block:: python
+
+        {
+            'pk': 'activity:<username>:<yyyy-mm>',
+            'sk': '<ddTHH:MM:ss.SSSSSS>:<unique-part>'
+        }
+    """
+    year_month = format_yyyymm(created_at.date())
+    date_time = format_dd_hhmmss_ssssss(created_at)
+    return {
+        'pk': f'activity:{username}:{year_month}',
+        'sk': f'{date_time}:{unique_part}',
+    }
+
+
 def parse_activity_partition_key(
     pk: str, # pylint: disable=invalid-name
 ) -> Tuple[str, datetime.date]:
@@ -586,6 +659,18 @@ def format_yyyymm(month: datetime.date) -> str:
     """Converts a given date into the "yyyy-mm" representation.
     """
     return month.strftime('%Y-%m')
+
+
+def format_dd_hhmmss_ssssss(time: datetime.datetime) -> str:
+    """Converts a given datetime into the "ddTHH:MM:ss.SSSSSS" representation.
+
+    The timezone is normalized to UTC.
+    No normalization is performed if ``time`` is naive.
+    """
+    offset = time.utcoffset()
+    if offset is not None and offset.total_seconds() != 0:
+        time = time.astimezone(datetime.timezone.utc)
+    return time.strftime('%dT%H:%M:%S.%f')
 
 
 def parse_yyyymm(month: str) -> datetime.date:

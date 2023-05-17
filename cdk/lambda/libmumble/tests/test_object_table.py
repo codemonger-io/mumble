@@ -6,12 +6,14 @@
 import datetime
 from libmumble.object_table import (
     deserialize_activity_key,
+    format_dd_hhmmss_ssssss,
     format_yyyymm,
     parse_activity_partition_key,
     parse_yyyymm,
     serialize_activity_key,
 )
 import pytest
+import pytz
 
 
 def test_parse_activity_partition_key():
@@ -97,6 +99,35 @@ def test_format_yyyymm():
     """
     date = datetime.date(2023, 5, 12)
     assert format_yyyymm(date) == '2023-05'
+
+
+def test_format_dd_hhmmss_ssssss():
+    """Tests ``format_dd_hhmmss_ssssss`` with "2023-05-17T08:34:01.012345Z".
+    """
+    time = datetime.datetime(
+        2023, 5, 17, 8, 34, 1, 12345, tzinfo=datetime.timezone.utc,
+    )
+    expected = '17T08:34:01.012345'
+    assert format_dd_hhmmss_ssssss(time) == expected
+
+
+def test_format_dd_hhmmss_ssssss_in_jst():
+    """Tests ``format_dd_hhmmss_ssssss`` with
+    "2023-05-17T08:34:01.012345+09:00" (JST).
+    """
+    jst = pytz.timezone('Asia/Tokyo')
+    time = jst.localize(datetime.datetime(2023, 5, 17, 8, 34, 1, 12345))
+    expected = '16T23:34:01.012345'
+    assert format_dd_hhmmss_ssssss(time) == expected
+
+
+def test_format_dd_hhmmss_ssssss_with_naive():
+    """Tests ``format_dd_hhmmss_ssssss`` with naive
+    "2023-05-17T08:34:01.012345".
+    """
+    time = datetime.datetime(2023, 5, 17, 8, 34, 1, 12345)
+    expected = '17T08:34:01.012345'
+    assert format_dd_hhmmss_ssssss(time) == expected
 
 
 def test_parse_yyyymm():
