@@ -15,6 +15,7 @@ from libactivitypub.actor import PublicKey
 from .exceptions import (
     BadConfigurationError,
     CorruptedDataError,
+    NotFoundError,
     TooManyAccessError,
 )
 from .id_scheme import (
@@ -248,6 +249,20 @@ class User: # pylint: disable=too-many-instance-attributes
                 f'no private key: {self.private_key_path}',
             ) from exc
         return res['Parameter']['Value']
+
+    def update_last_activity(self):
+        """Updates the timestamp of the last activity of the user.
+
+        :raises AttributeError: if no user table is associated with this user.
+
+        :raises NotFoundError: if the user is not in the user table.
+
+        :raises TooManyAccessError: if access to the DynamoDB table exceeds
+        the limit.
+        """
+        if self._table is None:
+            raise AttributeError('no user table is associated')
+        self._table.update_last_user_activity(self.username)
 
     def generate_activity_id(self) -> str:
         """Generates a random ID for an activity of the user.
@@ -507,6 +522,40 @@ class UserTable:
                 Select='COUNT',
             )
             return res['Count']
+        except self.exceptions.ProvisionedThroughputExceededException as exc:
+            raise TooManyAccessError(
+                'exceeded provisioned table throughput',
+            ) from exc
+        except self.exceptions.RequestLimitExceeded as exc:
+            raise TooManyAccessError('exceeded API access limit') from exc
+
+    def update_last_user_activity(self, username: str):
+        """Updates the timestamp of the last activity of a given user.
+
+        :raises NotFoundError: if the user is not ins the user table.
+
+        :raises TooManyAccessError: if access to the DynamoDB table exceeds
+        the limit.
+        """
+        updated_at = current_yyyymmdd_hhmmss_ssssss()
+        key = UserTable.make_user_key(username)
+        try:
+            res = self._table.update_item(
+                Key=key,
+                UpdateExpression='SET #updatedAt = :updatedAt',
+                ExpressionAttributeNames={
+                    '#updatedAt': 'updatedAt',
+                },
+                ExpressionAttributeValues={
+                    ':updatedAt': updated_at,
+                },
+                ConditionExpression=Attr('pk').exists(),
+            )
+            LOGGER.debug('succeeded to update last activity: %s', res)
+        except self.exceptions.ConditionalCheckFailedException as exc:
+            raise NotFoundError(
+                f'no such user in the user table: {username}',
+            ) from exc
         except self.exceptions.ProvisionedThroughputExceededException as exc:
             raise TooManyAccessError(
                 'exceeded provisioned table throughput',
