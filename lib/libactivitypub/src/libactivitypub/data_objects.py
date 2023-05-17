@@ -4,7 +4,7 @@
 """
 
 import logging
-from typing import Any, Dict, List, Union
+from typing import Any, Dict
 from .objects import DictObject
 
 
@@ -25,15 +25,25 @@ class Note(DictObject):
         or if ``underlying`` does not have "content".
 
         :raises TypeError: if ``underlying`` is incompatible with
-        ActivityStreams object, or if "content" of ``underlying`` is not
-        ``str``.
+        ActivityStreams object,
+        or if ``underlying`` has no "content",
+        or if ``underlying`` has a non-str "content",
+        or if ``underlying`` has a non-str "attributedTo".
         """
         super().__init__(underlying)
         if 'content' not in underlying:
-            raise ValueError('invalid note: missing content')
+            raise TypeError('invalid note: missing content')
         if not isinstance(underlying['content'], str):
             raise TypeError(
                 f'content must be str but {type(underlying["content"])}',
+            )
+        if (
+            'attributedTo' in underlying
+            and not isinstance(underlying['attributedTo'], str)
+        ):
+            raise TypeError(
+                'attributedTo must be str but'
+                f' {type(underlying["attributedTo"])}',
             )
 
     @property
@@ -49,59 +59,3 @@ class Note(DictObject):
     @attributed_to.setter
     def attributed_to(self, value: str):
         self._underlying['attributedTo'] = value
-
-    @property
-    def published(self) -> str:
-        """"published" property.
-
-        :raises AttributeError: if "published" is missing.
-        """
-        if 'published' not in self._underlying:
-            raise AttributeError('no "published" property')
-        return self._underlying['published']
-
-    @published.setter
-    def published(self, value: str):
-        self._underlying['published'] = value
-
-    @property
-    def to(self) -> Union[str, List[str]]: # pylint: disable=invalid-name
-        """"to" property.
-
-        :raises AttributeError: if "to" is missing.
-        """
-        if 'to' not in self._underlying:
-            raise AttributeError('no "to" property')
-        return self._underlying['to']
-
-    @to.setter
-    def to(self, value: Union[str, List[str]]): # pylint: disable=invalid-name
-        self._underlying['to'] = value
-
-    @property
-    def cc(self) -> Union[str, List[str]]: # pylint: disable=invalid-name
-        """"cc" property.
-
-        :raises AttributeError: if "cc" is missing.
-        """
-        if 'cc' not in self._underlying:
-            raise AttributeError('no "cc" property')
-        return self._underlying['cc']
-
-    @cc.setter
-    def cc(self, value: Union[str, List[str]]): # pylint: disable=invalid-name
-        self._underlying['cc'] = value
-
-    @property
-    def bcc(self):
-        """"bcc" property.
-
-        :raises AttributeError: if "bcc" is missing.
-        """
-        if 'bcc' not in self._underlying:
-            raise AttributeError('no "bcc" property')
-        return self._underlying['bcc']
-
-    @bcc.setter
-    def bcc(self, value: Union[str, List[str]]):
-        self._underlying['bcc'] = value

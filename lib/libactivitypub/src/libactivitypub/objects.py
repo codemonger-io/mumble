@@ -5,9 +5,13 @@
 
 from abc import ABC, abstractmethod
 import logging
-from typing import Any, Dict, Iterable, Optional, TypeVar, Type, Union
+from typing import Any, Dict, Iterable, List, Optional, TypeVar, Type, Union
 from uuid6 import uuid7
-from .activity_streams import get as activity_streams_get
+from .activity_streams import (
+    ACTIVITY_STREAMS_PUBLIC_ADDRESS,
+    get as activity_streams_get,
+)
+from .utils import is_str_or_strs
 
 
 LOGGER = logging.getLogger('libactivitypub.objects')
@@ -44,6 +48,44 @@ class APObject(ABC):
         """
         raise AttributeError('type is not implemented')
 
+    @property
+    def published(self) -> str:
+        """Timestamp in UTC when this object was published.
+
+        Must be like "2023-05-17T10:31:00Z".
+
+        :raises AttributeError: if the property is not implemented, or not
+        assigned.
+        """
+        raise AttributeError('published is not implemented')
+
+    @property
+    def to(self) -> Union[str, List[str]]: # pylint: disable=invalid-name
+        """Public primary audience of this object.
+
+        :raises AttributeError: if the property is not implemented, or not
+        assigned.
+        """
+        raise AttributeError('to is not implemented')
+
+    @property
+    def cc(self) -> Union[str, List[str]]: # pylint: disable=invalid-name
+        """Public secondary audience of this object.
+
+        :raises AttributeError: if the property is not implemented, or not
+        assigned.
+        """
+        raise AttributeError('cc is not implemented')
+
+    @property
+    def bcc(self) -> Union[str, List[str]]:
+        """Private secondary audience of this object.
+
+        :raises AttributeError: if the property is not implemented, or not
+        assigned.
+        """
+        raise AttributeError('bcc is not implemented')
+
     @abstractmethod
     def to_dict(self, with_context=True) -> Dict[str, Any]:
         """Returns a ``dict`` representation.
@@ -51,6 +93,24 @@ class APObject(ABC):
         :param bool with_context: retains the JSON-LD context field if this
         flag is ``True``, removes the context field if it is ``False``.
         """
+
+    def is_public(self) -> bool:
+        """Returns if this object is public.
+
+        An object is public if ``to`` or ``cc`` contain the ActivityStreams'
+        public address.
+
+        Returns ``False`` if this object has neither of ``to`` and ``cc``.
+        """
+        def contains_public(addresses: Union[str, List[str]]) -> bool:
+            if isinstance(addresses, str):
+                return addresses == ACTIVITY_STREAMS_PUBLIC_ADDRESS
+            return ACTIVITY_STREAMS_PUBLIC_ADDRESS in addresses
+        if hasattr(self, 'to') and contains_public(self.to):
+            return True
+        if hasattr(self, 'cc') and contains_public(self.cc):
+            return True
+        return False
 
 
 T = TypeVar('T', bound='DictObject')
@@ -65,20 +125,38 @@ class DictObject(APObject):
     def __init__(self, underlying: Dict[str, Any]):
         """Wraps a given ``dict``.
 
-        :raises ValueError: if ``underlying`` does not have ``type``.
-
-        :raises TypeError: if ``underlying`` has non-str ``id``,
-        or if ``underlying`` has a non-str ``type``.
+        :raises TypeError: if ``underlying`` has non-str "id",
+        or if ``underlying`` does not have "type",
+        or if ``underlying`` has a non-str "type",
+        or if ``underlying`` has a non-str "published",
+        or if ``underlying`` has an invalid "to",
+        or if ``underlying`` has an invalid "cc",
+        or if ``underlying`` has an invalid "bcc".
         """
         if 'id' in underlying and not isinstance(underlying['id'], str):
             raise TypeError(
                 f'id must be str but {type(underlying["id"])}',
             )
         if 'type' not in underlying:
-            raise ValueError('invalid object: missing type')
+            raise TypeError('invalid object: missing type')
         if not isinstance(underlying['type'], str):
             raise TypeError(
                 f'type must be str but {type(underlying["type"])}',
+            )
+        if (
+            'published' in underlying
+            and not isinstance(underlying['published'], str)
+        ):
+            raise TypeError(
+                f'published must be str but {type(underlying["published"])}',
+            )
+        if 'to' in underlying and not is_str_or_strs(underlying['to']):
+            raise TypeError(f'to must be str(s) but {type(underlying["to"])}')
+        if 'cc' in underlying and not is_str_or_strs(underlying['cc']):
+            raise TypeError(f'cc must be str(s) but {type(underlying["cc"])}')
+        if 'bcc' in underlying and not is_str_or_strs(underlying["bcc"]):
+            raise TypeError(
+                f'bcc must be  str(s) but {type(underlying["bcc"])}',
             )
         self._underlying = underlying
 
@@ -100,6 +178,60 @@ class DictObject(APObject):
     @property
     def type(self) -> str:
         return self._underlying['type']
+
+    @property
+    def published(self) -> str:
+        if 'published' not in self._underlying:
+            raise AttributeError('published is not assigned')
+        return self._underlying['published']
+
+    @published.setter
+    def published(self, published: str):
+        """Sets "published" of this object.
+        """
+        self._underlying['published'] = published
+
+    @property
+    def to(self) -> Union[str, List[str]]:
+        if 'to' not in self._underlying:
+            raise AttributeError('to is not assigned')
+        return self._underlying['to']
+
+    @to.setter
+    def to(
+        self,
+        to: Union[str, List[str]], # pylint: disable=invalid-name
+    ):
+        """Sets "to" of this object.
+        """
+        self._underlying['to'] = to # pylint: disable=invalid-name
+
+    @property
+    def cc(self) -> Union[str, List[str]]:
+        if 'cc' not in self._underlying:
+            raise AttributeError('cc is not assigned')
+        return self._underlying['cc']
+
+    @cc.setter
+    def cc(
+        self,
+        cc: Union[str, List[str]], # pylint: disable=invalid-name
+    ):
+        """Sets "cc" of this object.
+        """
+        self._underlying['cc'] = cc # pylint: disable=invalid-name
+
+    @property
+    def bcc(self) -> Union[str, List[str]]:
+        if 'bcc' not in self._underlying:
+            raise AttributeError('bcc is not assigned')
+        return self._underlying['bcc']
+
+    @bcc.setter
+    def bcc(self, bcc: Union[str, List[str]]):
+        """Sets "bcc" of this object.
+        """
+        self._underlying['bcc'] = bcc
 
     def cast(self, cls: Type[T]) -> T:
         """Casts this object as a given subclass.

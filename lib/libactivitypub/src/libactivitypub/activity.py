@@ -5,7 +5,7 @@
 
 from abc import ABC, abstractmethod
 import logging
-from typing import Any, Dict, Iterable, List, Optional, Union
+from typing import Any, Dict, Iterable, Optional, Union
 import requests
 from .activity_streams import (
     ACTIVITY_STREAMS_CONTEXT,
@@ -20,7 +20,6 @@ from .objects import (
     Reference,
     ObjectStore,
 )
-from .utils import is_str_or_strs
 
 
 LOGGER = logging.getLogger('libactivitypub.activity')
@@ -115,67 +114,11 @@ class Activity(DictObject):
         object_store.add(actor)
 
 
-# TODO: `to` and `cc` are standard fields in an Object.
-#       should this be here?
-# TODO: what about `bto`?
+# TODO: this class is almost meaningless, because `to`, `cc`, and `bcc` are
+#       now included in ``DictObject``.
 class MessageActivity(Activity):
     """Activity that may have ``to`` and ``cc`` fields.
     """
-    def __init__(self, underlying: Dict[str, Any]):
-        """Wraps a given ``dict`` representation.
-
-        Additional checks done by this class:
-        * if "to" is ``str`` or a list of ``str`` when it is given
-        * if "cc" is ``str`` or a list of ``str`` when it is given
-        * if "bcc" is ``str`` or a list of ``str`` when it is given
-
-        :raises TypeError: if ``underlying`` does not represent a message
-        activity.
-        """
-        super().__init__(underlying)
-        if 'to' in underlying and not is_str_or_strs(underlying['to']):
-            raise TypeError(
-                f'to must be str or str[] but {type(underlying["to"])}',
-            )
-        if 'cc' in underlying and not is_str_or_strs(underlying['cc']):
-            raise TypeError(
-                f'cc must be str or str[] but {type(underlying["cc"])}',
-            )
-        if 'bcc' in underlying and not is_str_or_strs(underlying['bcc']):
-            raise TypeError(
-                f'bcc must be str or str[] but {type(underlying["bcc"])}',
-            )
-
-    @property
-    def to(self) -> Union[str, List[str]]: # pylint: disable=invalid-name
-        """"to" property.
-
-        :raises AttributeError: if no "to" property exists.
-        """
-        if 'to' not in self._underlying:
-            raise AttributeError('no "to" property')
-        return self._underlying['to']
-
-    @property
-    def cc(self) -> Union[str, List[str]]: # pylint: disable=invalid-name
-        """"cc" property.
-
-        :raises AttributeError: if no "cc" property exists.
-        """
-        if 'cc' not in self._underlying:
-            raise AttributeError('no "cc" property')
-        return self._underlying['cc']
-
-    @property
-    def bcc(self) -> Union[str, List[str]]:
-        """"bcc" property.
-
-        :raises AttributeError: if no "bcc" property exists.
-        """
-        if 'bcc' not in self._underlying:
-            raise AttributeError('no "bcc" property')
-        return self._underlying['bcc']
-
     @abstractmethod
     def resolve_objects(self, object_store: ObjectStore):
         """Resolves actors referenced in ``to`` and ``cc`` fields.
