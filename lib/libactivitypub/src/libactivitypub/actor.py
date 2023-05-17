@@ -9,6 +9,7 @@ from typing import Any, Dict, TypedDict
 import requests
 from .activity_streams import (
     DEFAULT_REQUEST_TIMEOUT,
+    MUMBLE_USER_AGENT,
     get as activity_streams_get,
 )
 from .inbox import Inbox
@@ -76,6 +77,7 @@ class WebFinger:
         res = requests.get(
             endpoint,
             headers={
+                'User-Agent': MUMBLE_USER_AGENT,
                 'Accept': 'application/json',
             },
             timeout=DEFAULT_REQUEST_TIMEOUT,

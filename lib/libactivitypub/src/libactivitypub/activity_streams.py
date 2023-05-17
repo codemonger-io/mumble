@@ -9,6 +9,7 @@ import logging
 from typing import Any, Dict, TypedDict
 from urllib.parse import urlparse
 import requests
+from . import VERSION
 from .mime_types import ACTIVITY_STREAMS_MIME_TYPES
 from .signature import digest_request_body, make_signature_header
 
@@ -21,6 +22,8 @@ ACTIVITY_STREAMS_CONTEXT = 'https://www.w3.org/ns/activitystreams'
 
 ACTIVITY_STREAMS_PUBLIC_ADDRESS = 'https://www.w3.org/ns/activitystreams#Public'
 """Public address for public posts."""
+
+MUMBLE_USER_AGENT = f'Mumble/{VERSION}'
 
 DEFAULT_REQUEST_TIMEOUT = 30.0
 """Default timeout of requests."""
@@ -45,6 +48,7 @@ def get(endpoint: str) -> Dict[str, Any]:
     res = requests.get(
         endpoint,
         headers={
+            'User-Agent': MUMBLE_USER_AGENT,
             'Accept': ', '.join(ACTIVITY_STREAMS_MIME_TYPES),
         },
         timeout=DEFAULT_REQUEST_TIMEOUT,
@@ -99,6 +103,7 @@ def post(
         endpoint,
         data=body,
         headers={
+            'User-Agent': MUMBLE_USER_AGENT,
             'Accept': ', '.join(ACTIVITY_STREAMS_MIME_TYPES),
             'Content-Type': 'application/json',
             'Date': date,
