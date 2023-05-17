@@ -54,6 +54,16 @@ export class Dispatcher extends Construct {
    */
   private pushStagedObjectLambda: lambda.IFunction;
   /**
+   * Lambda function that pushes a staged activity to the object table.
+   * Implements a stage in a workflow.
+   */
+  private pushStagedActivityLambda: lambda.IFunction;
+  /**
+   * Lambda function that updates the last activity timestamp of a given user.
+   * Implements a stage in a workflow.
+   */
+  private updateLastActivityLambda: lambda.IFunction;
+  /**
    * Lambda function that expands recipients of a staged activity in the outbox.
    * Implements a state in a workflow.
    */
@@ -159,6 +169,53 @@ export class Dispatcher extends Construct {
     );
     objectStore.objectTable.grantReadWriteData(this.pushStagedObjectLambda);
     objectStore.grantGetFromObjectsFolder(this.pushStagedObjectLambda);
+    // - pushes a staged activity into the object table
+    this.pushStagedActivityLambda = new PythonFunction(
+      this,
+      'PushStagedActivityLambda',
+      {
+        description: 'Pushes a staged activity into the object table',
+        runtime: lambda.Runtime.PYTHON_3_8,
+        architecture: lambda.Architecture.ARM_64,
+        entry: path.join('lambda', 'states', 'push_staged_activity'),
+        index: 'index.py',
+        handler: 'lambda_handler',
+        layers: [libActivityPub, libCommons, libMumble],
+        environment: {
+          OBJECT_TABLE_NAME: objectStore.objectTable.tableName,
+          OBJECTS_BUCKET_NAME: objectStore.objectsBucket.bucketName,
+        },
+        memorySize: 256,
+        timeout: Duration.seconds(30),
+      },
+    );
+    objectStore.objectTable.grantReadWriteData(this.pushStagedActivityLambda);
+    objectStore.grantGetFromOutbox(this.pushStagedActivityLambda);
+    // - updates the last activity timestamp of a given user
+    this.updateLastActivityLambda = new PythonFunction(
+      this,
+      'UpdateLastActivityLambda',
+      {
+        description: 'Updates the last activity timestamp of a given user',
+        runtime: lambda.Runtime.PYTHON_3_8,
+        architecture: lambda.Architecture.ARM_64,
+        entry: path.join('lambda', 'states', 'update_last_activity'),
+        index: 'index.py',
+        handler: 'lambda_handler',
+        layers: [libActivityPub, libCommons, libMumble],
+        environment: {
+          USER_TABLE_NAME: userTable.userTable.tableName,
+          DOMAIN_NAME_PARAMETER_PATH:
+            systemParameters.domainNameParameter.parameterName,
+        },
+        memorySize: 256,
+        timeout: Duration.seconds(30),
+      },
+    );
+    userTable.userTable.grantReadWriteData(this.updateLastActivityLambda);
+    systemParameters.domainNameParameter.grantRead(
+      this.updateLastActivityLambda,
+    );
     // - expands recipients
     this.expandRecipientsLambda = new PythonFunction(
       this,
@@ -392,6 +449,33 @@ export class Dispatcher extends Construct {
     const workflowId = `DeliverStagedActivity_${deploymentStage}`;
 
     // defines states
+    // - pushes the staged activity into the object table
+    const invokePushStagedActivity = new sfn_tasks.LambdaInvoke(
+      this,
+      `PushStagedActivity_${workflowId}`,
+      {
+        lambdaFunction: this.pushStagedActivityLambda,
+        comment: 'Invokes PushStagedActivityLambda',
+        payloadResponseOnly: true,
+        resultSelector: {
+          'id.$': '$.actor',
+        },
+        resultPath: '$.actor',
+        taskTimeout: stepfunctions.Timeout.duration(Duration.minutes(1)),
+      },
+    );
+    // - updates the last activity of the user
+    const invokeUpdateLastActivity = new sfn_tasks.LambdaInvoke(
+      this,
+      `UpdateLastActivity_${workflowId}`,
+      {
+        lambdaFunction: this.updateLastActivityLambda,
+        comment: 'Invokes UpdateLastActivityLambda',
+        payloadResponseOnly: true,
+        resultPath: stepfunctions.JsonPath.DISCARD,
+        taskTimeout: stepfunctions.Timeout.duration(Duration.minutes(1)),
+      },
+    );
     // - expands recipients of the staged activity
     const invokeExpandRecipients = new sfn_tasks.LambdaInvoke(
       this,
@@ -431,7 +515,10 @@ export class Dispatcher extends Construct {
 
     // builds the state machine
     return new stepfunctions.StateMachine(this, workflowId, {
-      definition: invokeExpandRecipients.next(forEachRecipient),
+      definition: invokePushStagedActivity
+        .next(invokeUpdateLastActivity)
+        .next(invokeExpandRecipients)
+        .next(forEachRecipient),
       timeout: Duration.hours(1),
     });
   }
