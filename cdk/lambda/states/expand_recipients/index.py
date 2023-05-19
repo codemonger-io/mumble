@@ -24,14 +24,16 @@ from libmumble.parameters import get_domain_name
 from libmumble.exceptions import (
     BadConfigurationError,
     NotFoundError,
+    TooManyAccessError,
     TransientError,
 )
+from libmumble.id_scheme import split_user_path
 from libmumble.objects_store import (
     dict_as_object_key,
     get_username_from_outbox_key,
     load_activity,
 )
-from libmumble.user_table import UserTable
+from libmumble.user_table import User, UserTable
 import requests
 
 
@@ -63,6 +65,14 @@ class RecipientCollector(ActivityVisitor):
         :raises requests.HTTPError: if an http request to other server fails.
 
         :raises requests.Timeout if an http request to other server times out.:
+
+        :raises NotFoundError: if an internal user does not exist in this
+        server.
+
+        :raises TooManyAccessError: if access to the DynamoDB table exceeds
+        the limit.
+
+        :raises ValueError: if an internal path is invalid.
         """
         self._excluded.add(create.actor_id) # excludes the sender
         if hasattr(create, 'to'):
@@ -83,6 +93,14 @@ class RecipientCollector(ActivityVisitor):
         :raises requests.Timeout: if an http request to other server times out.
 
         :raises TypeError: if the accept object is not an activity.
+
+        :raises NotFoundError: if an internal user does not exist in this
+        server.
+
+        :raises TooManyAccessError: if access to the DynamoDB table exceeds
+        the limit.
+
+        :raises ValueError: if an internal path is invalid.
         """
         self._excluded.add(accept.actor_id) # excludes the sender
         LOGGER.debug('resolving accepted object')
@@ -95,6 +113,14 @@ class RecipientCollector(ActivityVisitor):
         :raises requests.HTTPError: if an http request to other server fails.
 
         :raises requests.Timeout: if an http request to other server times out.
+
+        :raises NotFoundError: if an internal user does not exist in this
+        server.
+
+        :raises TooManyAccessError: if access to the DynamoDB table exceeds
+        the limit.
+
+        :raises ValueError: if an internal path is invalid.
         """
         if isinstance(recipients, str):
             self.resolve_inboxes_of_recipient(recipients)
@@ -103,11 +129,19 @@ class RecipientCollector(ActivityVisitor):
                 self.resolve_inboxes_of_recipient(recipient)
 
     def resolve_inboxes_of_recipient(self, recipient: str):
-        """Resolves inbox URIs of a single recipients.
+        """Resolves inbox URIs of a single recipient.
 
         :raises requests.HTTPError: if an http request to other server fails.
 
         :raises requests.Timeout: if an http request to other server times out.
+
+        :raises NotFoundError: if an internal user does not exist in this
+        server.
+
+        :raises TooManyAccessError: if access to the DynamoDB table exceeds
+        the limit.
+
+        :raises ValueError: if an internal path is invalid.
         """
         if recipient in self._excluded:
             return
@@ -117,9 +151,16 @@ class RecipientCollector(ActivityVisitor):
         LOGGER.debug('resolving recipient: %s', recipient)
         parsed_uri = urlparse(recipient)
         if parsed_uri.hostname == DOMAIN_NAME:
-            self.resolve_internal_inboxes(recipient, parsed_uri.path)
+            self.resolve_internal_inboxes(parsed_uri.path)
             return
-        obj = DictObject.resolve(recipient)
+        try:
+            obj = DictObject.resolve(recipient)
+        except requests.HTTPError as exc:
+            if exc.response.status_code == 410:
+                LOGGER.warning('recipient is gone: %s', recipient)
+                # TODO: issue an event to delete the recipient
+                return
+            raise
         if obj.type == 'Person':
             actor = obj.cast(Actor)
             self.recipients.add(actor.inbox.uri)
@@ -131,11 +172,48 @@ class RecipientCollector(ActivityVisitor):
                 'unsupported recipient type "{obj.type}": {recipient}',
             )
 
-    def resolve_internal_inboxes(self, recipient: str, path_part: str):
+    def resolve_internal_inboxes(self, path_part: str):
         """Resolves inbox URIs of a single recipient resides in this server.
+
+        The recipient may be
+        * a user resides in this server
+
+        :raises requests.HTTPError: if an HTTP request to other server fails.
+
+        :raises requests.Timeout: if an HTTP request to other server times out.
+
+        :raises ValueError: if ``path_part`` is not associated with a user,
+        or if ``path_part`` does not represent followers.
+
+        :raises NotFoundError: if an internal user does not exist in this
+        server.
+
+        :raises TooManyAccessError: if access to the DynamoDB table exceeds
+        the limit.
         """
         LOGGER.debug('resolving internal inboxes: %s', path_part)
-        # TODO: resolve the internal inboxes
+        username, remaining = split_user_path(path_part)
+        user = USER_TABLE.find_user_by_username(username, DOMAIN_NAME)
+        if user is None:
+            raise NotFoundError(f'no such user: {username}')
+        if remaining == '':
+            LOGGER.debug('internal user: %s', username)
+            self.recipients.add(user.inbox_uri)
+        elif remaining == '/followers':
+            LOGGER.debug('expanding user followers: %s', username)
+            self.resolve_user_followers(user)
+        else:
+            raise ValueError(f'unresolvable internal entity: {path_part}')
+
+    def resolve_user_followers(self, user: User):
+        """Resolves inbox URIs of the followers of a given user.
+
+        :raises TooManyAccessError: if access to the DynamoDB table exceeds
+        the limit.
+        """
+        items_per_query = 100
+        for follower_id in user.enumerate_followers(items_per_query):
+            self.resolve_inboxes_of_recipient(follower_id)
 
 
 def expand_recipients(activity: Activity) -> List[str]:
@@ -153,6 +231,8 @@ def expand_recipients(activity: Activity) -> List[str]:
         visitor = RecipientCollector()
         activity.visit(visitor)
         return list(visitor.recipients)
+    except TooManyAccessError as exc:
+        raise TooManyAccessError(f'{exc}') from exc
     except requests.HTTPError as exc:
         if exc.response.status_code == 429:
             raise TransientError(f'too many HTTP requests: {exc}') from exc
@@ -192,7 +272,8 @@ def lambda_handler(event, _context):
     :raises NotFoundError: if the owner of the activity object is not found.
 
     :raises TransientError: if an http request to other server fails with
-    a transient error; e.g., timeout, 429 status code.
+    a transient error; e.g., timeout, 429 status code,
+    or if access to the DynamoDB table exceeds the limit.
 
     :raises requests.HTTPError: if an http request to other server fails with
     a non-transient error.
