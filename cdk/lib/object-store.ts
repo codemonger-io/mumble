@@ -178,11 +178,12 @@ export class ObjectStore extends Construct {
       //
       // 3. metadata of a reply to an object (TBC)
       //     - pk: "object:<username>:<category>:<unique-part>"
-      //     - sk: "reply:<yyyy-mm-ddTHH:MM:ssZ>:<object-hash>"
+      //     - sk: "reply:<yyyy-mm-ddTHH:MM:ssZ>:<remote-object-hash>"
       //
       //    non-key attributes
-      //     - repliedAt: "<yyyy-mm-ddTHH:MM:ssZ>"
+      //     - published: "<yyyy-mm-ddTHH:MM:ssZ>"
       //     - remoteObjectId: "<remote-object-id>"
+      //     - isPublic: whether the reply is public
       partitionKey: {
         name: 'pk',
         type: dynamodb.AttributeType.STRING,
