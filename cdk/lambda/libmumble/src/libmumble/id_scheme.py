@@ -39,17 +39,39 @@ def split_user_id(user_id: str) -> Tuple[str, str, str]:
 
     :returns: tuple of the domain name, username, and remaining.
 
-    :raises ValueError: ``user_id`` is malformed.
+    :raises ValueError: if ``user_id`` is malformed.
     """
     parsed = urlparse(user_id)
     if not parsed.hostname:
         raise ValueError(f'no domain name: {user_id}')
-    match = re.match(r'^\/users\/([^/]+)', parsed.path)
-    if match is None:
-        raise ValueError(f'not a user ID: {user_id}')
-    username = match.group(1)
-    remaining = parsed.path[len(match.group(0)):]
+    username, remaining = split_user_path(parsed.path)
     return parsed.hostname, username, remaining
+
+
+def split_user_path(user_path: str) -> Tuple[str, str]:
+    """Splits a given user path into the username and remaining.
+
+    A user path is the path part in a user ID (URI).
+
+    Examples:
+    "/users/kemoto" →
+    * "kemoto"
+    * ""
+
+    "/users/kemoto/followers" →
+    * "kemoto"
+    * "/followers"
+
+    :returns: tuple of the username and remaining.
+
+    :raises ValueError: if ``user_path`` is malformed.
+    """
+    match = re.match(r'^\/users\/([^/]+)', user_path)
+    if match is None:
+        raise ValueError(f'not a user path: {user_path}')
+    username = match.group(1)
+    remaining = user_path[len(match.group(0)):]
+    return username, remaining
 
 
 def make_user_inbox_uri(user_id: str) -> str:

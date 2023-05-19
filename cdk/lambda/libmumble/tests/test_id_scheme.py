@@ -7,6 +7,7 @@ from libmumble.id_scheme import (
     parse_user_activity_id,
     parse_user_post_id,
     split_user_id,
+    split_user_path,
 )
 import pytest
 
@@ -43,6 +44,36 @@ def test_split_user_id_with_non_uri():
     user_id = 'This is not a valid URI!'
     with pytest.raises(ValueError):
         split_user_id(user_id)
+
+
+def test_split_user_path_without_remaining():
+    """Tests ``split_user_path`` without a remaining part.
+    """
+    user_path = '/users/kemoto'
+    assert split_user_path(user_path) == ('kemoto', '')
+
+
+def test_split_user_path_with_remaining():
+    """Tests ``split_user_path`` with a remaining part.
+    """
+    user_path = '/users/kemoto/followers'
+    assert split_user_path(user_path) == ('kemoto', '/followers')
+
+
+def test_split_user_path_without_username():
+    """Tests ``split_user_path`` without a username.
+    """
+    user_path = '/users'
+    with pytest.raises(ValueError):
+        split_user_path(user_path)
+
+
+def test_split_user_path_with_string_not_starting_with_users():
+    """Tests ``split_user_path`` with a string not starting with "/users".
+    """
+    user_path = '/shared'
+    with pytest.raises(ValueError):
+        split_user_path(user_path)
 
 
 def test_parse_user_activity_id_with_valid_id():
