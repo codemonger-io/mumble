@@ -182,15 +182,15 @@ class User: # pylint: disable=too-many-instance-attributes
 
     def enumerate_followers(
         self,
-        followers_per_query: int,
+        items_per_query: int,
         after: Optional[str]=None,
         before: Optional[str]=None,
     ) -> Generator[str, None, None]:
         """Enumerates the follower of the user.
 
-        :param int followers_per_query: maximum number of followers to be
-        fetched in a single DynamoDB query. NOT the number of total followers
-        to be fetched.
+        :param int items_per_query: maximum number of items to be fetched in
+        a single DynamoDB query. NOT the total number of followers to be
+        fetched.
 
         :returns: generator of follower IDs.
 
@@ -198,12 +198,46 @@ class User: # pylint: disable=too-many-instance-attributes
         table.
 
         :raises ValueError: if both of ``after`` and ``before`` are specified.
+
+        :raises TooManyAccessError: if access to the DynamoDB table exceeds
+        the limit.
         """
         if self._table is None:
             raise AttributeError('no user table is associated')
         return self._table.enumerate_user_followers(
             self.username,
-            followers_per_query,
+            items_per_query,
+            after=after,
+            before=before,
+        )
+
+    def enumerate_following(
+        self,
+        items_per_query: int,
+        after: Optional[str]=None,
+        before: Optional[str]=None,
+    ) -> Generator[str, None, None]:
+        """Enumerates the accounts followed by the user.
+
+        :param int items_per_query: maximum number of items to be fetched in
+        a single DynamoDB query. NOT the total number of accounts to be
+        fetched.
+
+        :returns: generator of account IDs followed by the user.
+
+        :raises AttributeError: if this user is not associated with the user
+        table.
+
+        :raises ValueError: if both of ``after`` and ``before`` are specified.
+
+        :raises TooManyAccessError: if access to the DynamoDB table exceeds
+        the limit.
+        """
+        if self._table is None:
+            raise AttributeError('no user table is associated')
+        return self._table.enumerate_user_following(
+            self.username,
+            items_per_query,
             after=after,
             before=before,
         )
@@ -287,6 +321,8 @@ class UserTable:
     """Prefix of a partition key to query a user."""
     FOLLOWER_PK_PREFIX = 'follower:'
     """Prefix of a partition key to query followers."""
+    FOLLOWEE_PK_PREFIX = 'followee:'
+    """Prefix of a partition key to query followees."""
 
     def __init__(self, table: Any):
         """Wraps a given DynamoDB table that stores user information.
@@ -446,15 +482,15 @@ class UserTable:
     def enumerate_user_followers(
         self,
         username: str,
-        followers_per_query: int,
+        items_per_query: int,
         after: Optional[str]=None,
         before: Optional[str]=None,
     ) -> Generator[str, None, None]:
         """Enumerates the followers of a given user.
 
-        :param int followers_per_query: maximum number of followers to be
-        obtained in a single DynamoDB query. NOT the maximum number of
-        followers to be enumearted.
+        :param int items_per_query: maximum number of items to be fetched in
+        a single DynamoDB query. NOT the maximum number of followers to be
+        enumearted.
 
         :returns: generator of follower IDs.
 
@@ -486,7 +522,7 @@ class UserTable:
             try:
                 res = self._table.query(
                     KeyConditionExpression=key_condition,
-                    Limit=followers_per_query,
+                    Limit=items_per_query,
                     **exclusive_start_key,
                 )
                 follower_ids = [item['followerId'] for item in res['Items']]
@@ -502,6 +538,67 @@ class UserTable:
             except self.exceptions.ProvisionedThroughputExceededException as exc:
                 raise TooManyAccessError(
                     'exceeded provisioned table throughput',
+                ) from exc
+            except self.exceptions.RequestLimitExceeded as exc:
+                raise TooManyAccessError('exceeded API access limit') from exc
+
+    def enumerate_user_following(
+        self,
+        username: str,
+        items_per_query: int,
+        after: Optional[str]=None,
+        before: Optional[str]=None,
+    ) -> Generator[str, None, None]:
+        """Enumerates the accounts followed by a given user.
+
+        :param int items_per_query: maximum number of items to be fetched in
+        a single DynamoDB query. NOT the total number of accounts to be
+        enumerated.
+
+        :returns: generator of account IDs followed by the user.
+
+        :raises ValueError: if both of ``after`` and ``before`` are specified.
+
+        :raises TooManyAccessError: if access to the DynamoDB table exceeds
+        the limit.
+        """
+        if after is not None and before is not None:
+            raise ValueError('both of after and before are specified')
+        # loops until all the followed accounts are exhausted
+        key_condition = Key('pk').eq(make_followee_partition_key(username))
+        exclusive_start_key = {}
+        if before is not None:
+            before_key = make_followee_key(username, before)
+            exclusive_start_key['ExclusiveStartKey'] = before_key
+            exclusive_start_key['ScanIndexForward'] = False
+        elif after is not None:
+            after_key = make_followee_key(username, after)
+            exclusive_start_key['ExclusiveStartKey'] = after_key
+        while True:
+            LOGGER.debug(
+                'querying followees: username=%s, from=%s',
+                username,
+                exclusive_start_key,
+            )
+            try:
+                res = self._table.query(
+                    KeyConditionExpression=key_condition,
+                    Limit=items_per_query,
+                    **exclusive_start_key,
+                )
+                followee_ids = [item['followeeId'] for item in res['Items']]
+                if before is not None:
+                    followee_ids.sort()
+                for followee_id in followee_ids:
+                    yield followee_id
+                last_evaluated_key = res.get('LastEvaluatedKey')
+                LOGGER.debug('LastEvaluatedKey: %s', last_evaluated_key)
+                if not last_evaluated_key:
+                    break # items have been exhausted
+                exclusive_start_key['ExclusiveStartKey'] = last_evaluated_key
+            except self.exceptions.ProvisionedThroughputExceededException as exc:
+                raise TooManyAccessError(
+                    'exceeded provisioned DynamoDB table throughput',
                 ) from exc
             except self.exceptions.RequestLimitExceeded as exc:
                 raise TooManyAccessError('exceeded API access limit') from exc
@@ -636,3 +733,20 @@ def get_username_from_user_id(user_id: str) -> str:
     """
     _, username = parse_user_id(user_id)
     return username
+
+
+def make_followee_key(username: str, followee_id: str):
+    """Creates the partition key to identify a specified account followed by
+    a given user in the user table.
+    """
+    return {
+        'pk': make_followee_partition_key(username),
+        'sk': followee_id,
+    }
+
+
+def make_followee_partition_key(username: str):
+    """Creates the partition key for the accounts followed by a given user in
+    the user table.
+    """
+    return f'{UserTable.FOLLOWEE_PK_PREFIX}{username}'
