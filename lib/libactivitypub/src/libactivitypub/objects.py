@@ -394,6 +394,29 @@ class Reference:
             return self.ref['href']
         return self.ref['id']
 
+    def resolve(self) -> DictObject:
+        """Resolves the object associated with this reference.
+
+        Simply wraps the underlying ``dict``, if this reference wraps a
+        ``dict`` representing an object itself.
+        Otherwise, obtains the object via an HTTP request.
+
+        :raises requests.HTTPError: if an HTTP request to obtain the object
+        fails.
+
+        :raises requests.Timeout: if an HTTP request to obtain the object
+        times out.
+
+        :raises TypeError: if the resolved object is invalid.
+
+        :raises ValueError: if the resolved object is invalid.
+        """
+        if isinstance(self.ref, str):
+            return DictObject.resolve(self.ref)
+        if self.ref['type'] == 'Link':
+            return DictObject.resolve(self.ref['href'])
+        return DictObject(self.ref)
+
 
 def generate_id() -> str:
     """Generates a random ID for an object.
