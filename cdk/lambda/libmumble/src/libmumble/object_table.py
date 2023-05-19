@@ -13,6 +13,7 @@ from boto3.dynamodb.conditions import Attr, Key
 from dateutil.relativedelta import relativedelta
 from libactivitypub.activity import Activity
 from libactivitypub.data_objects import Note
+from libactivitypub.objects import APObject
 from .exceptions import DuplicateItemError, TooManyAccessError
 from .id_scheme import parse_user_activity_id, parse_user_post_id
 from .objects_store import (
@@ -340,7 +341,39 @@ class ObjectTable:
             item = res.get('Item')
             if item is None:
                 return None
-            return PostMetadata(item, table=self._table)
+            return PostMetadata(item, table=self)
+        except self.ProvisionedThroughputExceededException as exc:
+            raise TooManyAccessError(
+                'exceeded provisioned DynamoDB table throughput',
+            ) from exc
+        except self.RequestLimitExceeded as exc:
+            raise TooManyAccessError('too many API requests') from exc
+
+    def add_reply_to_post(self, username: str, unique_part: str, obj: APObject):
+        """Adds a given object as a reply to a specified post.
+
+        Does not check if the original post exists.
+
+        :raises DuplicateItemError: if the specified reply already exists in
+        the object table.
+
+        :raises TooManyAccessError: if access to the DynamoDB table exceeds
+        the limit.
+        """
+        key = make_user_post_reply_key(username, unique_part, obj)
+        try:
+            res = self._table.put_item(
+                Item={
+                    **key,
+                    'published': obj.published,
+                    'remoteObjectId': obj.id,
+                    'isPublic': obj.is_public(),
+                },
+                ConditionExpression=Attr('pk').not_exists(),
+            )
+            LOGGER.debug('succeeded to add a reply: %s', res)
+        except self.ConditionalCheckFailedException as exc:
+            raise DuplicateItemError('duplicate reply') from exc
         except self.ProvisionedThroughputExceededException as exc:
             raise TooManyAccessError(
                 'exceeded provisioned DynamoDB table throughput',
@@ -508,6 +541,15 @@ class PostMetadata(ObjectMetadata):
         _, _, unique_part = parse_user_post_id(self.id)
         return unique_part
 
+    def add_reply(self, reply: APObject):
+        """Adds a reply to this post.
+
+        :raises AttributeError: if no user table is associated with this post.
+        """
+        if self._table is None:
+            raise AttributeError('user table is not associated')
+        self._table.add_reply_to_post(self.username, self.unique_part, reply)
+
     def resolve(self, s3_client, objects_bucket_name: str) -> Note:
         """Resolves the post object.
 
@@ -653,6 +695,19 @@ def make_user_post_partition_key(username: str, unique_part: str) -> str:
     user in the object table.
     """
     return f'object:{username}:post:{unique_part}'
+
+
+def make_user_post_reply_key(
+    username: str,
+    unique_part: str,
+    obj: APObject,
+) -> PrimaryKey:
+    """Creates the primary key to identify a specified reply to user's post.
+    """
+    return {
+        'pk': make_user_post_partition_key(username, unique_part),
+        'sk': f'reply:{obj.published}:{obj.id}',
+    }
 
 
 def format_yyyymm(month: datetime.date) -> str:
