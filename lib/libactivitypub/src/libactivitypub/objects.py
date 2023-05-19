@@ -86,6 +86,15 @@ class APObject(ABC):
         """
         raise AttributeError('bcc is not implemented')
 
+    @property
+    def in_reply_to(self) -> 'Reference':
+        """In-reply-to.
+
+        :raises AttributeError: if the property is not implemented, or not
+        assigned.
+        """
+        raise AttributeError('in_reply_to is not implemented')
+
     @abstractmethod
     def to_dict(self, with_context=True) -> Dict[str, Any]:
         """Returns a ``dict`` representation.
@@ -131,7 +140,8 @@ class DictObject(APObject):
         or if ``underlying`` has a non-str "published",
         or if ``underlying`` has an invalid "to",
         or if ``underlying`` has an invalid "cc",
-        or if ``underlying`` has an invalid "bcc".
+        or if ``underlying`` has an invalid "bcc",
+        or if ``underlying`` has an invalid "inReplyTo".
         """
         if 'id' in underlying and not isinstance(underlying['id'], str):
             raise TypeError(
@@ -156,8 +166,10 @@ class DictObject(APObject):
             raise TypeError(f'cc must be str(s) but {type(underlying["cc"])}')
         if 'bcc' in underlying and not is_str_or_strs(underlying["bcc"]):
             raise TypeError(
-                f'bcc must be  str(s) but {type(underlying["bcc"])}',
+                f'bcc must be str(s) but {type(underlying["bcc"])}',
             )
+        if 'inReplyTo' in underlying:
+            Reference(underlying['inReplyTo'])
         self._underlying = underlying
 
     def set_jsonld_context(self, context: str):
@@ -232,6 +244,14 @@ class DictObject(APObject):
         """Sets "bcc" of this object.
         """
         self._underlying['bcc'] = bcc
+
+    @property
+    def in_reply_to(self) -> 'Reference':
+        """In-reply-to of this object.
+        """
+        if 'inReplyTo' not in self._underlying:
+            raise AttributeError('in_reply_to is not assigned')
+        return Reference(self._underlying['inReplyTo'])
 
     def cast(self, cls: Type[T]) -> T:
         """Casts this object as a given subclass.
