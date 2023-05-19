@@ -101,8 +101,9 @@ export class Dispatcher extends Construct {
         handler: 'lambda_handler',
         layers: [libActivityPub, libCommons, libMumble],
         environment: {
-          OBJECTS_BUCKET_NAME: objectStore.objectsBucket.bucketName,
           USER_TABLE_NAME: userTable.userTable.tableName,
+          OBJECT_TABLE_NAME: objectStore.objectTable.tableName,
+          OBJECTS_BUCKET_NAME: objectStore.objectsBucket.bucketName,
           DOMAIN_NAME_PARAMETER_PATH:
             systemParameters.domainNameParameter.parameterName,
         },
@@ -112,6 +113,9 @@ export class Dispatcher extends Construct {
     );
     objectStore.grantGetFromInbox(this.translateInboundActivityLambda);
     objectStore.grantPutIntoStagingOutbox(this.translateInboundActivityLambda);
+    objectStore.objectTable.grantReadWriteData(
+      this.translateInboundActivityLambda,
+    );
     userTable.userTable.grantReadWriteData(
       this.translateInboundActivityLambda,
     );

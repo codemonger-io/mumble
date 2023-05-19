@@ -5,8 +5,9 @@
 This function is intended to be a step on a state machine.
 
 You have to specify the following environment variable:
-* ``OBJECTS_BUCKET_NAME``: name of the S3 bucket that stores activity objects.
 * ``USER_TABLE_NAME``: name of the DynamoDB table that stores user information.
+* ``OBJECT_TABLE_NAME``: name of the DynamoDB table that manages objects
+* ``OBJECTS_BUCKET_NAME``: name of the S3 bucket that stores activity objects.
 * ``DOMAIN_NAME_PARAMETER_PATH``: path to the parameter containing the domain
   name in Parameter Store on AWS Systems Manager.
 """
@@ -19,6 +20,7 @@ from libactivitypub.activity import (
     Accept,
     Activity,
     ActivityVisitor,
+    Create,
     Follow,
     ResponseActivity,
     Undo,
@@ -28,6 +30,8 @@ from libmumble.exceptions import (
     NotFoundError,
     TransientError,
 )
+from libmumble.id_scheme import parse_user_object_id
+from libmumble.object_table import ObjectTable
 from libmumble.objects_store import (
     dict_as_object_key,
     get_username_from_inbox_key,
@@ -45,12 +49,15 @@ LOGGER.setLevel(logging.DEBUG)
 logging.getLogger('libactivitypub').setLevel(logging.DEBUG)
 logging.getLogger('libmumble').setLevel(logging.DEBUG)
 
+DOMAIN_NAME = get_domain_name(boto3.client('ssm'))
+
 OBJECTS_BUCKET_NAME = os.environ['OBJECTS_BUCKET_NAME']
 
 USER_TABLE_NAME = os.environ['USER_TABLE_NAME']
 USER_TABLE = UserTable(boto3.resource('dynamodb').Table(USER_TABLE_NAME))
 
-DOMAIN_NAME = get_domain_name(boto3.client('ssm'))
+OBJECT_TABLE_NAME = os.environ['OBJECT_TABLE_NAME']
+OBJECT_TABLE = ObjectTable(boto3.resource('dynamodb').Table(OBJECT_TABLE_NAME))
 
 
 class ActivityTranslator(ActivityVisitor):
@@ -67,6 +74,57 @@ class ActivityTranslator(ActivityVisitor):
         """Initializes with an inbox owner user.
         """
         self.user = user
+
+    def visit_create(self, create: Create):
+        """Translates a "Create" activity.
+
+        Deals with a reply so far.
+        Pushes a reply to the object table.
+
+        :raises requests.HTTPError: if an HTTP request to resolve the created
+        object fails.
+
+        :raises requests.Timeout: if an HTTP request to resolve the created
+        object times out.
+
+        :raises TypeError: if the resolved object is invalid.
+
+        :raises ValueError: if the resolved object is invalid.
+
+        :raises DuplicateItemError: if the reply already exists in the object
+        table.
+
+        :raises TooManyAccessError: if access to the DynamoDB table exceeds
+        the limit.
+        """
+        LOGGER.debug('translating Create')
+        obj = create.object.resolve()
+        if hasattr(obj, 'in_reply_to'):
+            LOGGER.debug('handling reply: %s', obj.in_reply_to.id)
+            _, username, category, unique_part = parse_user_object_id(
+                obj.in_reply_to.id,
+            )
+            if category == 'posts':
+                LOGGER.debug(
+                    'looking up post: username=%s, unique part=%s',
+                    username,
+                    unique_part,
+                )
+                post = OBJECT_TABLE.find_user_post(username, unique_part)
+                if post is None:
+                    raise NotFoundError(
+                        'no such post:'
+                        f' username={username}, unique part={unique_part}',
+                    )
+                LOGGER.debug('adding reply')
+                post.add_reply(obj)
+            else:
+                LOGGER.warning(
+                    'reply to other than a post is not supported: %s',
+                    category,
+                )
+        else:
+            LOGGER.warning('non-reply object is ignored')
 
     def visit_follow(self, follow: Follow):
         """Translates a "Follow" activity.
