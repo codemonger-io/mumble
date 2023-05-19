@@ -104,6 +104,28 @@ def make_user_key_id(user_id: str) -> str:
     return f'{user_id}#main-key'
 
 
+def parse_user_object_id(object_id: str) -> Tuple[str, str, str, str]:
+    """Parses a given ID of user's object.
+
+    ``object_id`` must be in the form
+    "https://<domain-name>/users/<username>/<category>/<unique-part>".
+
+    :returns: tuple of the domain name, username, category, and unique part of
+    the object. note that the category is in a plural form; e.g.,
+    activity → activities, post → posts, media → media.
+
+    :raises ValueError: if ``object_id`` is malformed.
+    """
+    domain_name, username, remaining = split_user_id(object_id)
+    remaining = remaining.rstrip('/') # allows a trailing slash
+    match = re.match(r'\/([^/]+)\/([^/]+)$', remaining)
+    if match is None:
+        raise ValueError(f'invalid user object ID: {object_id}')
+    category = match.group(1)
+    unique_part = match.group(2)
+    return domain_name, username, category, unique_part
+
+
 def generate_user_activity_id(user_id: str) -> str:
     """Generates a random ID for user's activity.
     """
@@ -136,7 +158,7 @@ def parse_user_post_id(post_id: str) -> Tuple[str, str, str]:
     """Parses a given post ID.
 
     :returns: tuple of the domain name, username, and unique part of the
-    activity.
+    post.
 
     :raises ValueError: if ``post_id`` is malformed.
     """

@@ -5,6 +5,7 @@
 
 from libmumble.id_scheme import (
     parse_user_activity_id,
+    parse_user_object_id,
     parse_user_post_id,
     split_user_id,
     split_user_path,
@@ -74,6 +75,50 @@ def test_split_user_path_with_string_not_starting_with_users():
     user_path = '/shared'
     with pytest.raises(ValueError):
         split_user_path(user_path)
+
+
+def test_parse_user_object_id_without_trailing_slash():
+    """Tests ``parse_user_object_id`` with a valid object ID without a trailing
+    slash.
+    """
+    object_id = 'https://mumble.codemonger.io/users/kemoto/posts/0123456789-abcdef'
+    expected = (
+        'mumble.codemonger.io',
+        'kemoto',
+        'posts',
+        '0123456789-abcdef',
+    )
+    assert parse_user_object_id(object_id) == expected
+
+
+def test_parse_user_object_id_with_trailing_slash():
+    """Tests ``parse_user_object_id`` with  a valid object ID with a trailing
+    slash.
+    """
+    object_id = 'https://mumble.codemonger.io/users/kemoto/activities/0000-0000/'
+    expected = (
+        'mumble.codemonger.io',
+        'kemoto',
+        'activities',
+        '0000-0000',
+    )
+    assert parse_user_object_id(object_id) == expected
+
+
+def test_parse_user_object_id_without_unique_part():
+    """Tests ``parse_user_object_id`` without the unique part.
+    """
+    object_id = 'https://mumble.codemonger.io/users/kemoto/posts'
+    with pytest.raises(ValueError):
+        parse_user_object_id(object_id)
+
+
+def test_parse_user_object_id_with_extra_segment():
+    """Tests ``parse_user_object_id`` with an extra segment.
+    """
+    object_id = 'https://mumble.codemonger.io/users/kemoto/posts/0123456789-abcdef/replies'
+    with pytest.raises(ValueError):
+        parse_user_object_id(object_id)
 
 
 def test_parse_user_activity_id_with_valid_id():
