@@ -10,6 +10,7 @@ from libmumble.objects_store import (
     get_username_from_inbox_key,
     get_username_from_outbox_key,
     get_username_from_staging_outbox_key,
+    parse_user_inbox_key,
 )
 
 
@@ -63,6 +64,40 @@ def test_dict_as_object_key_with_non_str_key():
     }
     with pytest.raises(TypeError):
         dict_as_object_key(obj) == obj
+
+
+def test_parse_user_inbox_key_with_extension():
+    """Tests ``parse_user_inbox_key`` with a valid inbox object key with an
+    extension.
+    """
+    key = 'inbox/users/kemoto/abcdefg.json'
+    expected = ('kemoto', 'abcdefg', '.json')
+    assert parse_user_inbox_key(key) == expected
+
+
+def test_parse_user_inbox_key_without_extension():
+    """Tests ``parse_user_inbox_key`` with a valid inbox object key without an
+    extension.
+    """
+    key = 'inbox/users/kemoto/abcdefg'
+    expected = ('kemoto', 'abcdefg', '')
+    assert parse_user_inbox_key(key) == expected
+
+
+def test_parse_user_inbox_key_without_unique_part():
+    """Tests ``parse_user_inbox_key`` without the unique part and extension.
+    """
+    key = 'inbox/users/kemoto'
+    with pytest.raises(ValueError):
+        parse_user_inbox_key(key)
+
+
+def test_parse_user_inbox_key_with_non_inbox():
+    """Tests ``parse_user_inbox_key`` with a key does not represent an inbox.
+    """
+    key = 'outbox/users/kemoto/activity.json'
+    with pytest.raises(ValueError):
+        parse_user_inbox_key(key)
 
 
 def test_get_username_from_inbox_key_with_valid_key():

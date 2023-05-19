@@ -6,7 +6,7 @@
 import json
 import logging
 import re
-from typing import Any, Dict, TypedDict
+from typing import Any, Dict, Tuple, TypedDict
 from libactivitypub.activity import Activity
 from libactivitypub.data_objects import Note
 from libactivitypub.objects import DictObject
@@ -55,6 +55,27 @@ def get_username_from_key(prefix: str, key: str) -> str:
     if match is None:
         raise ValueError(f'no username in object key: {key}')
     return match.group(1)
+
+
+def parse_user_inbox_key(key: str) -> Tuple[str, str, str]:
+    """Parses a given key in user's inbox.
+
+    ``key`` must be in the form
+    "inbox/users/<username>/<unique-part>.<extention>".
+
+    :returns: tuple of the username, unique part, and extention.
+    an extension may be empty string. an extention includes the leading dot.
+
+    :raises ValueError: if ``key`` is not in user's inbox.
+    """
+    pattern = r'^inbox\/users\/([^/]+)\/([^/.]+)(\.[^/]+)?$'
+    match = re.match(pattern, key)
+    if match is None:
+        raise ValueError(f'not an inbox key: {key}')
+    username = match[1]
+    unique_part = match[2]
+    extension = match[3] or ''
+    return username, unique_part, extension
 
 
 def get_username_from_inbox_key(key: str) -> str:
