@@ -166,6 +166,29 @@ export class MumbleApi extends Construct {
     );
     userTable.userTable.grantReadData(getFollowersLambda);
     systemParameters.domainNameParameter.grantRead(getFollowersLambda);
+    // - returns accounts followed by a given user
+    const getFollowingLambda = new PythonFunction(
+      this,
+      'GetFollowingLambda',
+      {
+        description: 'Returns accounts followed by a given user',
+        runtime: lambda.Runtime.PYTHON_3_8,
+        architecture: lambda.Architecture.ARM_64,
+        entry: path.join('lambda', 'get_following'),
+        index: 'index.py',
+        handler: 'lambda_handler',
+        layers: [libActivityPub, libCommons, libMumble],
+        environment: {
+          USER_TABLE_NAME: userTable.userTable.tableName,
+          DOMAIN_NAME_PARAMETER_PATH:
+            systemParameters.domainNameParameter.parameterName,
+        },
+        memorySize: 256,
+        timeout: Duration.seconds(20),
+      },
+    );
+    userTable.userTable.grantReadData(getFollowingLambda);
+    systemParameters.domainNameParameter.grantRead(getFollowingLambda);
     // - returns a specified post object of a given user
     const getPostLambda = new PythonFunction(
       this,
@@ -1011,6 +1034,94 @@ export class MumbleApi extends Construct {
           {
             statusCode: '404',
             description: 'user is not found',
+          },
+        ],
+      },
+    );
+    // /users/{username}/following
+    const following = user.addResource('following');
+    // - GET: returns acounts followed by a given user
+    following.addMethod(
+      'GET',
+      new apigateway.LambdaIntegration(getFollowingLambda, {
+        proxy: false,
+        passthroughBehavior: apigateway.PassthroughBehavior.NEVER,
+        requestTemplates: {
+          'application/json': composeMappingTemplate([
+            mappingTemplates.username,
+            mappingTemplates.page,
+            mappingTemplates.after,
+            mappingTemplates.before,
+          ]),
+        },
+        integrationResponses: [
+          catchErrorsWith(400, 'BadRequestError'),
+          catchErrorsWith(404, 'NotFoundError'),
+          catchErrorsWith(429, 'TooManyAccessError'),
+          {
+            statusCode: '200',
+          },
+        ],
+      }),
+      {
+        operationName: 'getFollowing',
+        description: 'Returns accounts followed by a given user.',
+        requestValidator,
+        requestParameterSchemas: {
+          'method.request.path.username': {
+            description: 'Username whose following accounts are to be obtained',
+            required: true,
+            schema: {
+              type: 'string',
+            },
+            example: 'kemoto',
+          },
+          'method.request.querystring.page': {
+            description: 'Whether to obtain a page of following accounts',
+            required: false,
+            schema: {
+              type: 'boolean',
+              default: false,
+            },
+            example: true,
+          },
+          'method.request.querystring.after': {
+            description: 'Obtains following accounts after this ID',
+            required: false,
+            schema: {
+              type: 'string',
+            },
+            example: 'https%3A%2F%2Fmumble.codemonger.io%2Fusers%2Fkemoto',
+          },
+          'method.request.querystring.before': {
+            description: 'Obtains following accounts before this ID',
+            required: false,
+            schema: {
+              type: 'string',
+            },
+            example: 'https%3A%2F%2Fmumble.codemonger.io%2Fusers%2Fkemoto',
+          },
+        },
+        methodResponses: [
+          {
+            statusCode: '200',
+            description: 'successful operation',
+            responseModels: {
+              'application/activity+json': paginatedModel,
+              'application/ld+json': paginatedModel,
+            },
+          },
+          {
+            statusCode: '400',
+            description: 'request is malformed',
+          },
+          {
+            statusCode: '404',
+            description: 'user is not found',
+          },
+          {
+            statusCode: '429',
+            description: 'there are too many requests',
           },
         ],
       },
