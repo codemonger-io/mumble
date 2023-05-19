@@ -259,6 +259,12 @@ class Create(MessageActivity):
                 obj[option] = getattr(note, option)
         return Create(obj)
 
+    @property
+    def object(self) -> Reference:
+        """Reference to the created object.
+        """
+        return Reference(self._underlying['object'])
+
     def visit(self, visitor: 'ActivityVisitor'):
         visitor.visit_create(self)
 
