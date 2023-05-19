@@ -60,7 +60,7 @@ export class UserTable extends Construct {
       //         - when the user made an activity last time
       //
       // 2. follower of the user associated with <username>
-      //     - pk: "followers:<username>"
+      //     - pk: "follower:<username>"
       //     - sk: "<follower-id>"
       //
       //    non-key attributes (TBC)
@@ -69,6 +69,18 @@ export class UserTable extends Construct {
       //     - followerId: "<follower-id>"
       //     - followActivityId: "<follow-activity-id>"
       //     - sharedInboxId: "<shared-inbox-id>"
+      //
+      // 3. account followed by the user associated with <username>
+      //     - pk: "followee:<username>"
+      //     - sk: "<followee-id>"
+      //
+      //    non-key attributes (TBC)
+      //     - createdAt: "<yyyy-mm-ddTHH:MM:ss.SSSSSSZ>"
+      //     - updatedAt: "<yyyy-mm-ddTHH:MM:ss.SSSSSSZ>"
+      //     - followeeId: "<followee-id>"
+      //     - followActivityId: "<follow-activity-id>"
+      //     - acceptActivityId: "<accept-activity-id>"
+      //         - empty if the follow request has not been accepted
       partitionKey: {
         name: 'pk',
         type: dynamodb.AttributeType.STRING,
