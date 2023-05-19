@@ -297,6 +297,80 @@
         }
       }
     },
+    "/users/{username}/following": {
+      "get": {
+        "description": "Returns accounts followed by a given user.",
+        "parameters": [
+          {
+            "description": "Username whose following accounts are to be obtained",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "kemoto",
+            "name": "username",
+            "in": "path"
+          },
+          {
+            "description": "Whether to obtain a page of following accounts",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "example": true,
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "description": "Obtains following accounts after this ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "https%3A%2F%2Fmumble.codemonger.io%2Fusers%2Fkemoto",
+            "name": "after",
+            "in": "query"
+          },
+          {
+            "description": "Obtains following accounts before this ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "https%3A%2F%2Fmumble.codemonger.io%2Fusers%2Fkemoto",
+            "name": "before",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation",
+            "content": {
+              "application/activity+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MumbleApimumbleapidevelopmentPaginated3378EA85"
+                }
+              },
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MumbleApimumbleapidevelopmentPaginated3378EA85"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "request is malformed"
+          },
+          "404": {
+            "description": "user is not found"
+          },
+          "429": {
+            "description": "there are too many requests"
+          }
+        }
+      }
+    },
     "/users/{username}/posts": {},
     "/users/{username}/posts/{uniquePart}": {
       "parameters": [
