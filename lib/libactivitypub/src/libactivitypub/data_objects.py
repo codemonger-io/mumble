@@ -4,8 +4,8 @@
 """
 
 import logging
-from typing import Any, Dict
-from .objects import DictObject
+from typing import Any, Dict, Union
+from .objects import DictObject, Reference
 
 
 LOGGER = logging.getLogger('libactivitypub.data_objects')
@@ -25,10 +25,11 @@ class Note(DictObject):
         or if ``underlying`` does not have "content".
 
         :raises TypeError: if ``underlying`` is incompatible with
-        ActivityStreams object,
+        Activity Streams object,
         or if ``underlying`` has no "content",
         or if ``underlying`` has a non-str "content",
-        or if ``underlying`` has a non-str "attributedTo".
+        or if ``underlying`` has a non-str "attributedTo",
+        or if ``underlying`` has a non-reference "replies".
         """
         super().__init__(underlying)
         if 'content' not in underlying:
@@ -45,6 +46,8 @@ class Note(DictObject):
                 'attributedTo must be str but'
                 f' {type(underlying["attributedTo"])}',
             )
+        if 'replies' in underlying:
+            Reference(underlying['replies']) # type check
 
     @property
     def attributed_to(self) -> str:
@@ -59,3 +62,17 @@ class Note(DictObject):
     @attributed_to.setter
     def attributed_to(self, value: str):
         self._underlying['attributedTo'] = value
+
+    @property
+    def replies(self) -> Reference:
+        """"replies" property.
+
+        :raises AttributeError: if "replies" is missing.
+        """
+        if 'replies' not in self._underlying:
+            raise AttributeError('no "replies" property')
+        return Reference(self._underlying['replies'])
+
+    @replies.setter
+    def replies(self, replies: Reference):
+        self._underlying['replies'] = replies.ref
