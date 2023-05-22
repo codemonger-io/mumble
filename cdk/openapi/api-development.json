@@ -437,6 +437,93 @@
           }
         }
       }
+    },
+    "/users/{username}/posts/{uniquePart}/replies": {
+      "get": {
+        "description": "Returns a collection of replies to a specific post",
+        "parameters": [
+          {
+            "description": "Username who owns the post that got replied",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "kemoto",
+            "name": "username",
+            "in": "path"
+          },
+          {
+            "description": "Unique part of the ID of the post that got replied",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "01234567-89ab-cdef-0123-456789abcdef",
+            "name": "uniquePart",
+            "in": "path"
+          },
+          {
+            "description": "Whether to obtain a collection page of replies",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "example": true,
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "description": "Obtains replies after this ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "2023-05-19T04%3A06%3A41Z%3Ahttps%3A%2F%2Fmumble.codemonger.io%2Fusers%2Fkemoto%2Fposts%2F01234567-89ab-cdef-0123-456789abcdef",
+            "name": "after",
+            "in": "query"
+          },
+          {
+            "description": "Obtains replies before this ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "2023-05-19T04%3A06%3A41Z%3Ahttps%3A%2F%2Fmumble.codemonger.io%2Fusers%2Fkemoto%2Fposts%2F01234567-89ab-cdef-0123-456789abcdef",
+            "name": "before",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation",
+            "content": {
+              "application/activity+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MumbleApimumbleapidevelopmentPaginated3378EA85"
+                }
+              },
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MumbleApimumbleapidevelopmentPaginated3378EA85"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "request is malformed"
+          },
+          "404": {
+            "description": "user or post does not exist"
+          },
+          "429": {
+            "description": "there are too many requests"
+          },
+          "500": {
+            "description": "internal server error"
+          }
+        }
+      }
     }
   },
   "components": {
