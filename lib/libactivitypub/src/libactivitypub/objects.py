@@ -394,6 +394,11 @@ class Reference:
             return self.ref['href']
         return self.ref['id']
 
+    def is_embedded(self) -> bool:
+        """Returns if the object is embedded.
+        """
+        return not isinstance(self.ref, str) and self.ref['type'] != 'Link'
+
     def resolve(self) -> DictObject:
         """Resolves the object associated with this reference.
 

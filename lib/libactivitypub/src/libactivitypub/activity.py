@@ -265,6 +265,12 @@ class Create(MessageActivity):
         """
         return Reference(self._underlying['object'])
 
+    @object.setter
+    def object(self, obj: Reference):
+        """Replaces the created object.
+        """
+        self._underlying['object'] = obj.ref
+
     def visit(self, visitor: 'ActivityVisitor'):
         visitor.visit_create(self)
 
