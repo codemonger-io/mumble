@@ -175,14 +175,18 @@ export class ObjectStore extends Construct {
       //         - may be different from `published`
       //     - updatedAt: "<yyyy-mm-ddTHH:MM:ss.SSSSSSZ>"
       //     - isPublic: whether the object is public
+      //     - replyCount: 123
       //
-      // 3. metadata of a reply to an object (TBC)
+      // 3. metadata of a reply to an object
       //     - pk: "object:<username>:<category>:<unique-part>"
-      //     - sk: "reply:<yyyy-mm-ddTHH:MM:ssZ>:<remote-object-hash>"
+      //     - sk: "reply:<yyyy-mm-ddTHH:MM:ssZ>:<reply-object-id>"
+      //         - `<yyyy-mm-ddTHH:MM:ssZ>` is the published datetime of the
+      //           reply
       //
       //    non-key attributes
+      //     - id: "<reply-object-id>"
+      //     - category: 'reply'
       //     - published: "<yyyy-mm-ddTHH:MM:ssZ>"
-      //     - remoteObjectId: "<remote-object-id>"
       //     - isPublic: whether the reply is public
       partitionKey: {
         name: 'pk',
