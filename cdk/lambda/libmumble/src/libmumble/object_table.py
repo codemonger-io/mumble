@@ -11,9 +11,9 @@ import re
 from typing import Any, Dict, Generator, Iterable, Optional, Tuple, TypedDict
 from boto3.dynamodb.conditions import Attr, Key
 from dateutil.relativedelta import relativedelta
-from libactivitypub.activity import Activity
+from libactivitypub.activity import Activity, ActivityVisitor, Create
 from libactivitypub.data_objects import Note
-from libactivitypub.objects import APObject, Reference
+from libactivitypub.objects import APObject, DictObject, Reference
 from .exceptions import DuplicateItemError, TooManyAccessError
 from .id_scheme import parse_user_activity_id, parse_user_post_id
 from .objects_store import (
@@ -581,6 +581,9 @@ class ActivityMetadata(ObjectMetadata):
     def resolve(self, s3_client, objects_bucket_name: str) -> Activity:
         """Resolves the activity object.
 
+        If the activity is a "Create" and the created object is embedded in it,
+        the created object is replaced with the updated contents.
+
         :param boto3.client('s3') s3_client: S3 client that access the S3
         bucket for objects.
 
@@ -593,10 +596,26 @@ class ActivityMetadata(ObjectMetadata):
 
         :raises TypeError: if the loaded object is invalid.
         """
-        return load_activity(s3_client, {
+        activity = load_activity(s3_client, {
             'bucket': objects_bucket_name,
             'key': make_user_outbox_key(self.username, self.unique_part),
         })
+        activity.visit(ActivityUpdater())
+        return activity
+
+
+class ActivityUpdater(ActivityVisitor):
+    """Updates the contents of an activity.
+    """
+    def visit_create(self, create: Create):
+        """Updates the contents of the created object.
+        """
+        LOGGER.debug('updating "Create"')
+        if create.object.is_embedded():
+            LOGGER.debug('updating object: %s', create.object.id)
+            # TODO: directly load from the object store
+            updated = DictObject.resolve(create.object.id)
+            create.object = Reference(updated.to_dict(with_context=False))
 
 
 class PostMetadata(ObjectMetadata):
