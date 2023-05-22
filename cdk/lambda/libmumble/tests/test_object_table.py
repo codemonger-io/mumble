@@ -6,11 +6,13 @@
 import datetime
 from libmumble.object_table import (
     deserialize_activity_key,
+    deserialize_user_post_reply_key,
     format_dd_hhmmss_ssssss,
     format_yyyymm,
     parse_activity_partition_key,
     parse_yyyymm,
     serialize_activity_key,
+    serialize_user_post_reply_key,
 )
 import pytest
 import pytz
@@ -92,6 +94,45 @@ def test_deserialize_activity_key_with_invalid_key():
     username = 'kemoto'
     with pytest.raises(ValueError):
         deserialize_activity_key(key, username)
+
+
+def test_serialize_user_post_reply_key():
+    """Tests ``serialize_user_post_reply_key`` with a valid key.
+    """
+    key = {
+        'pk': 'object:kemoto:post:12345678-1234-abcd',
+        'sk': 'reply:2023-05-22T15:50:00Z:https://mumble.codemonger.io',
+    }
+    expected = '2023-05-22T15:50:00Z:https://mumble.codemonger.io'
+    assert serialize_user_post_reply_key(key) == expected
+
+
+def test_serialize_user_post_reply_key_with_invalid_sk():
+    """Tests ``serialize_user_post_reply_key`` with an invalid "sk".
+    """
+    key = {
+        'pk': 'object:kemoto:post:12345678-1234-abcd',
+        'sk': 'answer:2023-05-22T15:50:00Z:https://mumble.codemonger.io',
+    }
+    with pytest.raises(ValueError):
+        serialize_user_post_reply_key(key)
+
+
+def test_deserialize_user_post_reply_key():
+    """Tests ``deserialize_user_post_reply_key`` with a valid key.
+    """
+    key = '2023-05-22T15:50:00Z:https://mumble.codemonger.io'
+    username = 'kemoto'
+    unique_part = '12345678-1234-abcd'
+    expected = {
+        'pk': 'object:kemoto:post:12345678-1234-abcd',
+        'sk': 'reply:2023-05-22T15:50:00Z:https://mumble.codemonger.io',
+    }
+    assert deserialize_user_post_reply_key(
+        username,
+        unique_part,
+        key,
+    ) == expected
 
 
 def test_format_yyyymm():

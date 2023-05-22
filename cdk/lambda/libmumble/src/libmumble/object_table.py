@@ -13,7 +13,7 @@ from boto3.dynamodb.conditions import Attr, Key
 from dateutil.relativedelta import relativedelta
 from libactivitypub.activity import Activity
 from libactivitypub.data_objects import Note
-from libactivitypub.objects import APObject
+from libactivitypub.objects import APObject, Reference
 from .exceptions import DuplicateItemError, TooManyAccessError
 from .id_scheme import parse_user_activity_id, parse_user_post_id
 from .objects_store import (
@@ -50,6 +50,8 @@ class ObjectTable:
 
     The object table manages metadata and history of objects.
     """
+    REPLY_SK_PREFIX = 'reply:'
+
     def __init__(self, table):
         """Wraps a boto3's DynamoDB Table resource.
 
@@ -278,7 +280,7 @@ class ObjectTable:
                 raise TooManyAccessError('too many requests') from exc
             items = res['Items']
             for item in items:
-                yield ActivityMetadata(item, table=self._table)
+                yield ActivityMetadata(item, table=self)
             last_evaluated_key = res.get('LastEvaluatedKey')
             if not last_evaluated_key:
                 break # all the items were exhausted
@@ -308,6 +310,7 @@ class ObjectTable:
                     'createdAt': created_at,
                     'updatedAt': updated_at,
                     'isPublic': post.is_public(),
+                    'replyCount': 0,
                 },
                 ConditionExpression=Attr('pk').not_exists(),
             )
@@ -365,8 +368,9 @@ class ObjectTable:
             res = self._table.put_item(
                 Item={
                     **key,
+                    'id': obj.id,
+                    'category': 'reply',
                     'published': obj.published,
-                    'remoteObjectId': obj.id,
                     'isPublic': obj.is_public(),
                 },
                 ConditionExpression=Attr('pk').not_exists(),
@@ -380,6 +384,72 @@ class ObjectTable:
             ) from exc
         except self.RequestLimitExceeded as exc:
             raise TooManyAccessError('too many API requests') from exc
+
+    def enumerate_replies_to_post(
+        self,
+        username: str,
+        unique_part: str,
+        items_per_query: int,
+        before: Optional[PrimaryKey]=None,
+        after: Optional[PrimaryKey]=None,
+    ) -> Generator['ReplyMetadata', None, None]:
+        """Enumerates replies to a specified post.
+
+        Enumerates only public replies.
+
+        :param int items_per_query: maximum number of items fetched in a
+        single DynamoDB query. NOT the total number of replies to pull.
+
+        :param Optional[PrimaryKey] before: queries replies before this key.
+
+        :param Optional[PrimaryKey] after: queries replies after this key.
+
+        :returns: generator of replies to the post. reverse-chronologically
+        ordered.
+
+        :raises ValueError: if both of ``before`` and ``after`` are specified.
+
+        :raises TooManyAccessError: if access to the DynamoDB table exceeds
+        the limit.
+        """
+        if before is not None and after is not None:
+            raise ValueError('both of before and after are specified')
+        key_condition = Key('pk').eq(
+            make_user_post_partition_key(username, unique_part),
+        ) & Key('sk').begins_with(ObjectTable.REPLY_SK_PREFIX)
+        filter_expression = Attr('isPublic').eq(True)
+        exclusive_start_key: Dict[str, Any] = {
+            'ScanIndexForward': False,
+        }
+        if before is not None:
+            exclusive_start_key['ExclusiveStartKey'] = before
+        if after is not None:
+            exclusive_start_key['ExclusiveStartKey'] = after
+            exclusive_start_key['ScanIndexForward'] = True
+        while True:
+            LOGGER.debug('querying replies: from=%s', exclusive_start_key)
+            try:
+                res = self._table.query(
+                    KeyConditionExpression=key_condition,
+                    FilterExpression=filter_expression,
+                    Limit=items_per_query,
+                    **exclusive_start_key,
+                )
+            except self.ProvisionedThroughputExceededException as exc:
+                raise TooManyAccessError(
+                    'exceeded provisioned DynamoDB table throughput',
+                ) from exc
+            except self.RequestLimitExceeded as exc:
+                raise TooManyAccessError('too many API requests') from exc
+            items = res['Items']
+            if after is not None:
+                items.reverse() # chronological → reverse-chronological
+            for item in items:
+                yield ReplyMetadata(item, table=self)
+            last_evaluated_key = res.get('LastEvaluatedKey')
+            if not last_evaluated_key:
+                break # all the items were exhausted
+            exclusive_start_key['ExclusiveStartKey'] = last_evaluated_key
 
     @staticmethod
     def make_monthly_user_activity_partition_key(
@@ -532,6 +602,35 @@ class ActivityMetadata(ObjectMetadata):
 class PostMetadata(ObjectMetadata):
     """Metadata of a post object.
     """
+    reply_count: int
+    """Number of replies to the post."""
+
+    def __init__(
+        self,
+        item: Dict[str, Any],
+        table: Optional[ObjectTable]=None,
+    ):
+        """Initializes with a DynamoDB table item representing a post.
+
+        ``item`` must have the following key in addition to those required by
+        ``ObjectMetadata``.
+
+        .. code-block:: python
+
+            {
+                'replyCount': 123
+            }
+
+        :raises KeyError: if ``item`` lacks ``replyCount``,
+        or if ``item`` lacks other mandatory keys required by
+        ``ObjectMetadata``.
+
+        :raises ValueError: if ``replyCount`` is not a number,
+        or``ObjectMetadata`` may raise.
+        """
+        super().__init__(item, table=table)
+        self.reply_count = int(item['replyCount'])
+
     @cached_property
     def unique_part(self) -> str:
         """Unique part of the post ID.
@@ -541,6 +640,12 @@ class PostMetadata(ObjectMetadata):
         _, _, unique_part = parse_user_post_id(self.id)
         return unique_part
 
+    @property
+    def replies_id(self) -> str:
+        """ID (URI) of the replies to the post.
+        """
+        return f'{self.id}/replies'
+
     def add_reply(self, reply: APObject):
         """Adds a reply to this post.
 
@@ -549,6 +654,58 @@ class PostMetadata(ObjectMetadata):
         if self._table is None:
             raise AttributeError('user table is not associated')
         self._table.add_reply_to_post(self.username, self.unique_part, reply)
+
+    def enumerate_replies(
+        self,
+        items_per_query: int,
+        before: Optional[str]=None,
+        after: Optional[str]=None,
+    ) -> Generator['ReplyMetadata', None, None]:
+        """Enumerates replies to the post.
+
+        ``before`` and ``after`` must be serialized with
+        :py:func:`serialize_user_post_reply_key`.
+
+        :param int items_per_query: maximum number of items to be fetched in
+        a single DynamoDB query. NOT the total number of replies to pull.
+
+        :param Optional[str] before: obtains replies before this serialized
+        key.
+
+        :param Optional[str] after: obtains replies after this serialized key.
+
+        :returns: generator of metadata of replies. reverse-chronologically
+        oredered.
+
+        :raises AttributeError: if no user table is associated with this post.
+
+        :raises ValueError: if both of ``before`` and ``after`` are specified,
+        or if ``before`` is not a valid key,
+        or if ``after`` is not a valid key.
+        """
+        if self._table is None:
+            raise AttributeError('user table is not associated')
+        before_key: Optional[PrimaryKey] = None
+        if before is not None:
+            before_key = deserialize_user_post_reply_key(
+                self.username,
+                self.unique_part,
+                before,
+            )
+        after_key: Optional[PrimaryKey] = None
+        if after is not None:
+            after_key = deserialize_user_post_reply_key(
+                self.username,
+                self.unique_part,
+                after,
+            )
+        return self._table.enumerate_replies_to_post(
+            self.username,
+            self.unique_part,
+            items_per_query,
+            before=before_key,
+            after=after_key,
+        )
 
     def resolve(self, s3_client, objects_bucket_name: str) -> Note:
         """Resolves the post object.
@@ -565,10 +722,81 @@ class PostMetadata(ObjectMetadata):
 
         :raises TypeError: if the loaded object is invalid.
         """
-        return load_object(s3_client, {
+        obj = load_object(s3_client, {
             'bucket': objects_bucket_name,
             'key': make_user_post_object_key(self.username, self.unique_part),
         }).cast(Note)
+        obj.replies = Reference(self.make_reply_collection())
+        return obj
+
+    def make_reply_collection(self) -> Dict[str, Any]:
+        """Retuns a collection of replies to the post.
+
+        :returns: ``dict`` representing an ``OrderedCollection`` of replies
+        to the post.
+        """
+        replies_id = self.replies_id
+        return {
+            'id': replies_id,
+            'type': 'OrderedCollection',
+            'totalItems': self.reply_count,
+            'first': f'{replies_id}?page=true',
+        }
+
+
+class ReplyMetadata:
+    """Metadata of a reply.
+    """
+    OLDEST_SERIALIZED_KEY = '1970-01-01T00:00:00Z:!'
+    """Oldest serialized key."""
+
+    pk: str
+    """Partition key in the DynamoDB table."""
+    sk: str
+    """Sort key in the DynamoDB table."""
+    id: str
+    """ID of the reply object."""
+    published: str
+    """Published date time."""
+    is_public: bool
+    """Whether the post is public."""
+
+    def __init__(self, item: Dict[str, Any], table: Optional[ObjectTable]=None):
+        """Initializes from an item in the DynamoDB table.
+
+        ``item`` must be a ``dict`` similar to the following:
+
+        .. code-block:: python
+
+            {
+                'pk': 'object:<username>:<category>:<unique-part>',
+                'sk': 'reply:<yyyy-mm-ddTHH:MM:ssZ>:<reply-object-id>',
+                'id': '<reply-object-id>',
+                'category': 'reply',
+                'published': '<yyyy-mm-ddTHH:MM:ssZ>',
+                'isPublic': True
+            }
+
+        :raises KeyError: if ``item`` lacks any mandatory key.
+        """
+        self.pk = item['pk'] # pylint: disable=invalid-name
+        self.sk = item['sk'] # pylint: disable=invalid-name
+        self.id = item['id'] # pylint: disable=invalid-name
+        self.published = item['published']
+        self.is_public = item['isPublic']
+        self._table = table
+
+    @cached_property
+    def serialized_key(self) -> str:
+        """Serialized form of the key to identify the reply.
+
+        You can deserialize the result with
+        :py:func:`deserialize_user_post_reply_key`.
+        """
+        return serialize_user_post_reply_key({
+            'pk': self.pk,
+            'sk': self.sk,
+        })
 
 
 def make_activity_key(
@@ -706,7 +934,55 @@ def make_user_post_reply_key(
     """
     return {
         'pk': make_user_post_partition_key(username, unique_part),
-        'sk': f'reply:{obj.published}:{obj.id}',
+        'sk': f'{ObjectTable.REPLY_SK_PREFIX}{obj.published}:{obj.id}',
+    }
+
+
+def serialize_user_post_reply_key(key: PrimaryKey) -> str:
+    """Serializes a given primary key identifying a reply to a post.
+
+    Given ``key`` similar to the following:
+
+    .. code-block:: python
+
+        {
+            'pk': 'object:<username>:<category>:<unique-part>',
+            'sk': 'reply:<yyyy-mm-ddTHH:MM:ssZ>:<reply-object-id>'
+        }
+
+    returns "<yyyy-mm-ddTHH:MM:ssZ>:<reply-object-id>".
+
+    When you deserialize the result with
+    :py:func:`deserialize_user_post_reply_key`, you have to supply the username
+    and unique part of the original post.
+
+    You have to properly encode the result if you want to embed it in a URL.
+
+    :raises ValueError: if ``key`` is invalid.
+    """
+    match = re.match(rf'^{ObjectTable.REPLY_SK_PREFIX}(.+)', key['sk'])
+    if match is None:
+        raise ValueError(f'invalid reply key (sk): {key["sk"]}')
+    return match.group(1)
+
+
+def deserialize_user_post_reply_key(
+    username: str,
+    unique_part: str,
+    key: str,
+) -> PrimaryKey:
+    """Deserializes a given serialized key of a reply.
+
+    :param str username: username of the user who owns the original post.
+
+    :param str unique_part: unique part in the ID of the original post.
+
+    :param str key: key serialized with
+    :py:func:`serialize_user_post_reply_key`.
+    """
+    return {
+        'pk': make_user_post_partition_key(username, unique_part),
+        'sk': f'{ObjectTable.REPLY_SK_PREFIX}{key}',
     }
 
 
