@@ -211,6 +211,26 @@ export class MumbleApi extends Construct {
     );
     objectStore.objectTable.grantReadData(getPostLambda);
     objectStore.grantGetFromObjectsFolder(getPostLambda);
+    // - returns replies to a specific post object
+    const getPostRepliesLambda = new PythonFunction(
+      this,
+      'GetPostRepliesLambda',
+      {
+        description: 'Returns replies to a specific post',
+        runtime: lambda.Runtime.PYTHON_3_8,
+        architecture: lambda.Architecture.ARM_64,
+        entry: path.join('lambda', 'get_post_replies'),
+        index: 'index.py',
+        handler: 'lambda_handler',
+        layers: [libActivityPub, libCommons, libMumble],
+        environment: {
+          OBJECT_TABLE_NAME: objectStore.objectTable.tableName,
+        },
+        memorySize: 256,
+        timeout: Duration.seconds(20),
+      },
+    );
+    objectStore.objectTable.grantReadData(getPostRepliesLambda);
 
     // the API
     this.api = new RestApiWithSpec(this, `mumble-api-${deploymentStage}`, {
@@ -1190,6 +1210,108 @@ export class MumbleApi extends Construct {
           {
             statusCode: '404',
             description: 'user or post is not found',
+          },
+          {
+            statusCode: '429',
+            description: 'there are too many requests',
+          },
+          {
+            statusCode: '500',
+            description: 'internal server error',
+          },
+        ],
+      },
+    );
+    // /users/{username}/posts/{uniquePart}/replies
+    const replies = post.addResource('replies');
+    // - GET: returns a collection of replies to a specific post
+    replies.addMethod(
+      'GET',
+      new apigateway.LambdaIntegration(getPostRepliesLambda, {
+        proxy: false,
+        passthroughBehavior: apigateway.PassthroughBehavior.NEVER,
+        requestTemplates: {
+          'application/json': composeMappingTemplate([
+            mappingTemplates.username,
+            mappingTemplates.uniquePart,
+            mappingTemplates.page,
+            mappingTemplates.after,
+            mappingTemplates.before,
+          ]),
+        },
+        integrationResponses: [
+          catchErrorsWith(400, 'BadRequestError'),
+          catchErrorsWith(404, 'NotFoundError'),
+          catchErrorsWith(429, 'TooManyAccessError'),
+          catchErrorsWith(500, 'BadConfigurationError'),
+          {
+            statusCode: '200',
+          },
+        ],
+      }),
+      {
+        operationName: 'getPostReplies',
+        description: 'Returns a collection of replies to a specific post',
+        requestParameterSchemas: {
+          'method.request.path.username': {
+            description: 'Username who owns the post that got replied',
+            required: true,
+            schema: {
+              type: 'string',
+            },
+            example: 'kemoto',
+          },
+          'method.request.path.uniquePart': {
+            description: 'Unique part of the ID of the post that got replied',
+            required: true,
+            schema: {
+              type: 'string',
+            },
+            example: '01234567-89ab-cdef-0123-456789abcdef',
+          },
+          'method.request.querystring.page': {
+            description: 'Whether to obtain a collection page of replies',
+            required: false,
+            schema: {
+              type: 'boolean',
+              default: false,
+            },
+            example: true,
+          },
+          'method.request.querystring.after': {
+            description: 'Obtains replies after this ID',
+            required: false,
+            schema: {
+              type: 'string',
+            },
+            example: '2023-05-19T04%3A06%3A41Z%3Ahttps%3A%2F%2Fmumble.codemonger.io%2Fusers%2Fkemoto%2Fposts%2F01234567-89ab-cdef-0123-456789abcdef',
+          },
+          'method.request.querystring.before': {
+            description: 'Obtains replies before this ID',
+            required: false,
+            schema: {
+              type: 'string',
+            },
+            example: '2023-05-19T04%3A06%3A41Z%3Ahttps%3A%2F%2Fmumble.codemonger.io%2Fusers%2Fkemoto%2Fposts%2F01234567-89ab-cdef-0123-456789abcdef',
+          },
+        },
+        requestValidator,
+        methodResponses: [
+          {
+            statusCode: '200',
+            description: 'successful operation',
+            responseModels: {
+              'application/activity+json': paginatedModel,
+              'application/ld+json': paginatedModel,
+            },
+          },
+          {
+            statusCode: '400',
+            description: 'request is malformed',
+          },
+          {
+            statusCode: '404',
+            description: 'user or post does not exist',
           },
           {
             statusCode: '429',
