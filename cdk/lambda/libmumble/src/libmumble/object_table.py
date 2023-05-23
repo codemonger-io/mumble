@@ -13,9 +13,13 @@ from boto3.dynamodb.conditions import Attr, Key
 from dateutil.relativedelta import relativedelta
 from libactivitypub.activity import Activity, ActivityVisitor, Create
 from libactivitypub.data_objects import Note
-from libactivitypub.objects import APObject, DictObject, Reference
-from .exceptions import DuplicateItemError, TooManyAccessError
-from .id_scheme import parse_user_activity_id, parse_user_post_id
+from libactivitypub.objects import APObject, Reference
+from .exceptions import DuplicateItemError, NotFoundError, TooManyAccessError
+from .id_scheme import (
+    parse_user_activity_id,
+    parse_user_object_id,
+    parse_user_post_id,
+)
 from .objects_store import (
     load_activity,
     load_object,
@@ -590,32 +594,100 @@ class ActivityMetadata(ObjectMetadata):
         :param str objects_bucket_name: name of the S3 bucket that stores
         objects.
 
+        :raises AttributeError: if no object table is associated.
+
         :raises NotFoundError: if the activity object is not found.
+
+        :raises TooManyAccessError: if access to the DynamoDB table exceeds
+        the limit.
 
         :raises ValueError: if the loaded object is invalid.
 
         :raises TypeError: if the loaded object is invalid.
         """
+        if self._table is None:
+            raise AttributeError('no object table is associated')
         activity = load_activity(s3_client, {
             'bucket': objects_bucket_name,
             'key': make_user_outbox_key(self.username, self.unique_part),
         })
-        activity.visit(ActivityUpdater())
+        activity.visit(ActivityUpdater(
+            self._table,
+            s3_client,
+            objects_bucket_name,
+        ))
         return activity
 
 
 class ActivityUpdater(ActivityVisitor):
     """Updates the contents of an activity.
     """
+    def __init__(
+        self,
+        table: ObjectTable,
+        s3_client,
+        objects_bucket_name: str,
+    ):
+        """Initializes with access to the S3 bucket for objects.
+
+        :param boto3.client('s3') s3_client: S3 client to access the objects
+        bucket.
+        """
+        self.table = table
+        self.s3_client = s3_client
+        self.objects_bucket_name = objects_bucket_name
+
     def visit_create(self, create: Create):
         """Updates the contents of the created object.
+
+        Does nothing if the object is not embedded.
+
+        :raises TooManyAccessError: if access to the DynamoDB table exceeds
+        the limit.
         """
         LOGGER.debug('updating "Create"')
         if create.object.is_embedded():
-            LOGGER.debug('updating object: %s', create.object.id)
-            # TODO: directly load from the object store
-            updated = DictObject.resolve(create.object.id)
-            create.object = Reference(updated.to_dict(with_context=False))
+            self.update_created_object(create)
+
+    def update_created_object(self, create: Create):
+        """Updates the contents of a given created object.
+
+        Supposes the object is embedded.
+
+        Does nothing if the created object is not a post (Note).
+
+        :raises TooManyAccessError: if access to the DynamoDB table exceeds
+        the limit.
+        """
+        LOGGER.debug('updating created object: %s', create.object.id)
+        try:
+            _, username, category, unique_part  = parse_user_object_id(
+                create.object.id,
+            )
+        except ValueError:
+            LOGGER.debug('ignores external object')
+            return
+        if category != 'posts':
+            LOGGER.debug('ignores other than post')
+            return
+        LOGGER.debug('looking up the post')
+        meta_post = self.table.find_user_post(username, unique_part)
+        if meta_post is None:
+            LOGGER.debug('ignores non-existent object')
+            return
+        try:
+            LOGGER.debug('resolving the post')
+            post = meta_post.resolve(self.s3_client, self.objects_bucket_name)
+        except NotFoundError:
+            LOGGER.debug('ignores non-existent object')
+            return
+        except (ValueError, TypeError) as exc:
+            LOGGER.debug('ignores invalid object: %s', exc)
+            return
+        if post.id != create.object.id:
+            LOGGER.debug('ignores external object')
+            return
+        create.object = Reference(post.to_dict(with_context=False))
 
 
 class PostMetadata(ObjectMetadata):
