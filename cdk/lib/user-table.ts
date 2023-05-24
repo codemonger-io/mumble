@@ -89,6 +89,7 @@ export class UserTable extends Construct {
         name: 'sk',
         type: dynamodb.AttributeType.STRING,
       },
+      stream: dynamodb.StreamViewType.KEYS_ONLY,
       removalPolicy: RemovalPolicy.RETAIN,
       ...billingSettings,
     });
@@ -121,6 +122,15 @@ export class UserTable extends Construct {
         'ssm:GetParameterHistory',
       ],
       resourceArns: [paramArn],
+    });
+  }
+
+  /** Grants PartiQL update on the user table to a given principal. */
+  grantBatchUpdateUserTable(grantee: iam.IGrantable): iam.Grant {
+    return iam.Grant.addToPrincipal({
+      grantee,
+      actions: ['dynamodb:PartiQLUpdate'],
+      resourceArns: [this.userTable.tableArn],
     });
   }
 }
