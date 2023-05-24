@@ -8,12 +8,13 @@ import datetime
 from functools import cached_property
 import logging
 import re
-from typing import Any, Dict, Generator, Iterable, Optional, Tuple, TypedDict
+from typing import Any, Dict, Generator, Iterable, Optional, Tuple
 from boto3.dynamodb.conditions import Attr, Key
 from dateutil.relativedelta import relativedelta
 from libactivitypub.activity import Activity, ActivityVisitor, Create
 from libactivitypub.data_objects import Note
 from libactivitypub.objects import APObject, Reference
+from .dynamodb import PrimaryKey, TableWrapper
 from .exceptions import DuplicateItemError, NotFoundError, TooManyAccessError
 from .id_scheme import (
     parse_user_activity_id,
@@ -40,29 +41,15 @@ LOGGER = logging.getLogger('libmumble.object_table')
 LOGGER.setLevel(logging.DEBUG)
 
 
-class PrimaryKey(TypedDict):
-    """Primary key of the object table.
-    """
-    pk: str
-    """Partition key."""
-    sk: str
-    """Sort key."""
-
-
-class ObjectTable:
+class ObjectTable(TableWrapper):
     """Provides access to the object table.
 
     The object table manages metadata and history of objects.
     """
+    OBJECT_PK_PREFIX = 'object:'
+    """Prefix of the partition key of an object."""
     REPLY_SK_PREFIX = 'reply:'
-
-    def __init__(self, table):
-        """Wraps a boto3's DynamoDB Table resource.
-
-        :param boto3.resource('dynamodb').Table table: object table to be
-        wrapped.
-        """
-        self._table = table
+    """Prefix of the sort key of a reply object."""
 
     def put_activity(self, activity: Activity):
         """Puts a given activity into the object table.
@@ -478,30 +465,6 @@ class ObjectTable:
             ),
             'sk': '00T00:00:00.000000:@',
         }
-
-    @property
-    def exceptions(self):
-        """boto3 exceptions.
-        """
-        return self._table.meta.client.exceptions
-
-    @property
-    def ConditionalCheckFailedException(self): # pylint: disable=invalid-name
-        """boto3's ConditionalCheckFailedException.
-        """
-        return self.exceptions.ConditionalCheckFailedException
-
-    @property
-    def ProvisionedThroughputExceededException(self): # pylint: disable=invalid-name
-        """boto3's ProvisionedThroughputExceededException.
-        """
-        return self.exceptions.ProvisionedThroughputExceededException
-
-    @property
-    def RequestLimitExceeded(self): # pylint: disable=invalid-name
-        """boto3's RequestLimitExceeded.
-        """
-        return self.exceptions.RequestLimitExceeded
 
 
 class ObjectMetadata(ABC):
@@ -1013,7 +976,7 @@ def make_user_post_partition_key(username: str, unique_part: str) -> str:
     """Creates the partition key to look up a specified post object of a given
     user in the object table.
     """
-    return f'object:{username}:post:{unique_part}'
+    return f'{ObjectTable.OBJECT_PK_PREFIX}{username}:post:{unique_part}'
 
 
 def make_user_post_reply_key(

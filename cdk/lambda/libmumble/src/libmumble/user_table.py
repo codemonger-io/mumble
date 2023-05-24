@@ -12,6 +12,7 @@ from urllib.parse import unquote, urlparse
 from boto3.dynamodb.conditions import Attr, Key
 from libactivitypub.activity import Follow
 from libactivitypub.actor import PublicKey
+from .dynamodb import TableWrapper
 from .exceptions import (
     BadConfigurationError,
     CorruptedDataError,
@@ -314,7 +315,7 @@ class User: # pylint: disable=too-many-instance-attributes
         return generate_user_staging_outbox_key(self.username)
 
 
-class UserTable:
+class UserTable(TableWrapper):
     """User table.
     """
     USER_PK_PREFIX = 'user:'
@@ -323,14 +324,6 @@ class UserTable:
     """Prefix of a partition key to query followers."""
     FOLLOWEE_PK_PREFIX = 'followee:'
     """Prefix of a partition key to query followees."""
-
-    def __init__(self, table: Any):
-        """Wraps a given DynamoDB table that stores user information.
-
-        :params boto3.DynamoDB.Table: DynamoDB Table resource of the user
-        table.
-        """
-        self._table = table
 
     def find_user_by_username(
         self,
@@ -349,11 +342,11 @@ class UserTable:
         try:
             key = UserTable.make_user_key(username)
             res = self._table.get_item(Key=key)
-        except self.exceptions.ProvisionedThroughputExceededException as exc:
+        except self.ProvisionedThroughputExceededException as exc:
             raise TooManyAccessError(
                 'exceeded provisioned table throughput',
             ) from exc
-        except self.exceptions.RequestLimitExceeded as exc:
+        except self.RequestLimitExceeded as exc:
             raise TooManyAccessError('exceeded API access limit') from exc
         if 'Item' not in res:
             return None
@@ -414,14 +407,14 @@ class UserTable:
                 'new follower count: %d',
                 res['Attributes'].get('followerCount'),
             )
-        except self.exceptions.ConditionalCheckFailedException:
+        except self.ConditionalCheckFailedException:
             LOGGER.debug('existing follower')
             # follower count should stay
-        except self.exceptions.ProvisionedThroughputExceededException as exc:
+        except self.ProvisionedThroughputExceededException as exc:
             raise TooManyAccessError(
                 'exceeded provisioned table throughput',
             ) from exc
-        except self.exceptions.RequestLimitExceeded as exc:
+        except self.RequestLimitExceeded as exc:
             raise TooManyAccessError('exceeded API access limit') from exc
 
     def remove_user_follower(self, username: str, follow: Follow):
@@ -469,14 +462,14 @@ class UserTable:
                 'new follower count: %d',
                 res['Attributes'].get('followerCount'),
             )
-        except self.exceptions.ConditionalCheckFailedException:
+        except self.ConditionalCheckFailedException:
             LOGGER.debug('non-existing follower')
             # follower cound should stay
-        except self.exceptions.ProvisionedThroughputExceededException as exc:
+        except self.ProvisionedThroughputExceededException as exc:
             raise TooManyAccessError(
                 'exceeded provisioned table throughput',
             ) from exc
-        except self.exceptions.RequestLimitExceeded as exc:
+        except self.RequestLimitExceeded as exc:
             raise TooManyAccessError('exceeded API access limit') from exc
 
     def enumerate_user_followers(
@@ -535,11 +528,11 @@ class UserTable:
                 if not last_evaluated_key:
                     return # finishes enumeration
                 exclusive_start_key['ExclusiveStartKey'] = last_evaluated_key
-            except self.exceptions.ProvisionedThroughputExceededException as exc:
+            except self.ProvisionedThroughputExceededException as exc:
                 raise TooManyAccessError(
                     'exceeded provisioned table throughput',
                 ) from exc
-            except self.exceptions.RequestLimitExceeded as exc:
+            except self.RequestLimitExceeded as exc:
                 raise TooManyAccessError('exceeded API access limit') from exc
 
     def enumerate_user_following(
@@ -596,11 +589,11 @@ class UserTable:
                 if not last_evaluated_key:
                     break # items have been exhausted
                 exclusive_start_key['ExclusiveStartKey'] = last_evaluated_key
-            except self.exceptions.ProvisionedThroughputExceededException as exc:
+            except self.ProvisionedThroughputExceededException as exc:
                 raise TooManyAccessError(
                     'exceeded provisioned DynamoDB table throughput',
                 ) from exc
-            except self.exceptions.RequestLimitExceeded as exc:
+            except self.RequestLimitExceeded as exc:
                 raise TooManyAccessError('exceeded API access limit') from exc
 
     def get_user_follower_count(self, username: str) -> int:
@@ -619,11 +612,11 @@ class UserTable:
                 Select='COUNT',
             )
             return res['Count']
-        except self.exceptions.ProvisionedThroughputExceededException as exc:
+        except self.ProvisionedThroughputExceededException as exc:
             raise TooManyAccessError(
                 'exceeded provisioned table throughput',
             ) from exc
-        except self.exceptions.RequestLimitExceeded as exc:
+        except self.RequestLimitExceeded as exc:
             raise TooManyAccessError('exceeded API access limit') from exc
 
     def update_last_user_activity(self, username: str):
@@ -649,15 +642,15 @@ class UserTable:
                 ConditionExpression=Attr('pk').exists(),
             )
             LOGGER.debug('succeeded to update last activity: %s', res)
-        except self.exceptions.ConditionalCheckFailedException as exc:
+        except self.ConditionalCheckFailedException as exc:
             raise NotFoundError(
                 f'no such user in the user table: {username}',
             ) from exc
-        except self.exceptions.ProvisionedThroughputExceededException as exc:
+        except self.ProvisionedThroughputExceededException as exc:
             raise TooManyAccessError(
                 'exceeded provisioned table throughput',
             ) from exc
-        except self.exceptions.RequestLimitExceeded as exc:
+        except self.RequestLimitExceeded as exc:
             raise TooManyAccessError('exceeded API access limit') from exc
 
     @staticmethod
@@ -697,12 +690,6 @@ class UserTable:
                 f'partition key must start with "{UserTable.USER_PK_PREFIX}"',
             )
         return pk[len(UserTable.USER_PK_PREFIX):]
-
-    @property
-    def exceptions(self):
-        """Module containing exceptions from the DynamoDB client.
-        """
-        return self._table.meta.client.exceptions
 
 
 def parse_user_id(user_id: str) -> Tuple[str, str]:
