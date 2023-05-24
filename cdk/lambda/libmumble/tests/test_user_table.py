@@ -6,6 +6,8 @@
 from libmumble.user_table import (
     UserTable,
     get_username_from_user_id,
+    parse_followee_partition_key,
+    parse_follower_partition_key,
     parse_user_id,
 )
 import pytest
@@ -99,3 +101,33 @@ def test_user_table_make_follower_key():
         'pk': 'follower:kemoto',
         'sk': 'https://mastodon-japan.net/users/kemoto',
     }
+
+
+def test_parse_follower_partition_key():
+    """Tests ``parse_follower_partition_key`` with a valid partition key.
+    """
+    key = 'follower:kemoto'
+    assert parse_follower_partition_key(key) == 'kemoto'
+
+
+def test_parse_follower_partition_key_with_non_follower():
+    """Tests ``parse_follower_partition_key`` with a non-follower key.
+    """
+    key = 'user:kemoto'
+    with pytest.raises(ValueError):
+        parse_follower_partition_key(key)
+
+
+def test_parse_followee_partition_key():
+    """Tests ``parse_followee_partition_key`` with a valid partition key.
+    """
+    key = 'followee:kemoto'
+    assert parse_followee_partition_key(key) == 'kemoto'
+
+
+def test_parse_followee_partition_key_with_non_followee():
+    """Tests ``parse_followee_partition_key`` with a non-followee key.
+    """
+    key = 'follower:kemoto'
+    with pytest.raises(ValueError):
+        parse_followee_partition_key(key)

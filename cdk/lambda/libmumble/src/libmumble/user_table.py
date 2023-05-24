@@ -658,7 +658,7 @@ class UserTable(TableWrapper):
         """Returns a primary key to get a user from the user table.
         """
         return {
-            'pk': f'{UserTable.USER_PK_PREFIX}{username}',
+            'pk': make_user_partition_key(username),
             'sk': 'reserved',
         }
 
@@ -722,6 +722,24 @@ def get_username_from_user_id(user_id: str) -> str:
     return username
 
 
+def make_user_partition_key(username: str) -> str:
+    """Creates the partition key for a given user.
+    """
+    return f'{UserTable.USER_PK_PREFIX}{username}'
+
+
+def parse_follower_partition_key(key: str) -> str:
+    """Parses a given partition key of a follower of a user.
+
+    :returns: username followed by the account.
+
+    :raises ValueError: if ``key`` is not a partition key of a follower.
+    """
+    if not key.startswith(UserTable.FOLLOWER_PK_PREFIX):
+        raise ValueError(f'invalid partition key for a follower: {key}')
+    return key[len(UserTable.FOLLOWER_PK_PREFIX):]
+
+
 def make_followee_key(username: str, followee_id: str):
     """Creates the partition key to identify a specified account followed by
     a given user in the user table.
@@ -732,8 +750,20 @@ def make_followee_key(username: str, followee_id: str):
     }
 
 
-def make_followee_partition_key(username: str):
+def make_followee_partition_key(username: str) -> str:
     """Creates the partition key for the accounts followed by a given user in
     the user table.
     """
     return f'{UserTable.FOLLOWEE_PK_PREFIX}{username}'
+
+
+def parse_followee_partition_key(key: str) -> str:
+    """Parses a given partition key of an account followed by a user.
+
+    :returns: username who follows the account.
+
+    :raises ValueError: if ``key`` is not a partition key of a followee.
+    """
+    if not key.startswith(UserTable.FOLLOWEE_PK_PREFIX):
+        raise ValueError(f'invalid partition key for a followee: {key}')
+    return key[len(UserTable.FOLLOWEE_PK_PREFIX):]
