@@ -13,6 +13,7 @@ import { Dispatcher } from './dispatcher';
 import { LambdaDependencies } from './lambda-dependencies';
 import { MumbleApi } from './mumble-api';
 import { ObjectStore } from './object-store';
+import { Statistics } from './statistics';
 import { SystemParameters } from './system-parameters';
 import { UserTable } from './user-table';
 
@@ -61,6 +62,11 @@ export class CdkStack extends Stack {
       objectStore,
       systemParameters,
       userTable,
+    });
+    const statistics = new Statistics(this, 'Statistics', {
+      deadLetterQueue,
+      lambdaDependencies,
+      objectStore,
     });
 
     // outputs
