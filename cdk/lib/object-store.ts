@@ -196,6 +196,7 @@ export class ObjectStore extends Construct {
         name: 'sk',
         type: dynamodb.AttributeType.STRING,
       },
+      stream: dynamodb.StreamViewType.KEYS_ONLY,
       removalPolicy: RemovalPolicy.RETAIN,
       ...billingSettings,
     });
@@ -292,6 +293,15 @@ export class ObjectStore extends Construct {
   /** Grants a given principal "Get" access from the objects folder. */
   grantGetFromObjectsFolder(grantee: iam.IGrantable): iam.Grant {
     return this.objectsBucket.grantRead(grantee, OBJECTS_FOLDER_PREFIX + '*');
+  }
+
+  /** Grants a given principal batch update on the object table. */
+  grantBatchUpdateObjectTable(grantee: iam.IGrantable): iam.Grant {
+    return iam.Grant.addToPrincipal({
+      grantee,
+      actions: ['dynamodb:PartiQLUpdate'],
+      resourceArns: [this.objectTable.tableArn],
+    });
   }
 
   // creates an `EventPattern` that triggers when an object is created in
