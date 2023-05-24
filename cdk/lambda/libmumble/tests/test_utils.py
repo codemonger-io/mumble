@@ -5,6 +5,7 @@
 
 from datetime import datetime, timezone
 from libmumble.utils import (
+    chunk,
     format_yyyymmdd_hhmmss,
     format_yyyymmdd_hhmmss_ssssss,
     parse_yyyymmdd_hhmmss,
@@ -44,6 +45,76 @@ def test_to_urlsafe_base64_with_empty_string():
     """Tests ``to_urlsafe_base64`` with an empty string.
     """
     assert to_urlsafe_base64('') == ''
+
+
+def test_chunk_with_exact_by_3():
+    """Tests ``chunk`` with a sequence exactly split into chunks of 3 items.
+    """
+    sequence = [
+        1, 2, 3,
+        4, 5, 6,
+        7, 8, 9,
+    ]
+    expected = [
+        [1, 2, 3],
+        [4, 5, 6],
+        [7, 8, 9],
+    ]
+    assert list(chunk(sequence, 3)) == expected
+
+
+def test_chunk_with_by_3_remaining_1():
+    """Tests ``chunk`` with a sequence remaining 1 item if chunked by 3 items.
+    """
+    sequence = [
+        1, 2, 3,
+        4, 5, 6,
+        7,
+    ]
+    expected = [
+        [1, 2, 3],
+        [4, 5, 6],
+        [7],
+    ]
+    assert list(chunk(sequence, 3)) == expected
+
+
+def test_chunk_with_by_3_remaining_2():
+    """Tests ``chunk`` with a sequence remaining 2 items if chunked by 3 items.
+    """
+    sequence = [
+        1, 2, 3,
+        4, 5, 6,
+        7, 8,
+    ]
+    expected = [
+        [1, 2, 3],
+        [4, 5, 6],
+        [7, 8],
+    ]
+    assert list(chunk(sequence, 3)) == expected
+
+
+def test_chunk_with_empty_sequence():
+    """Tests ``chunk`` with an empty sequence.
+    """
+    assert list(chunk([], 3)) == []
+
+
+def test_chunk_with_iterator():
+    """Tests ``chunk`` with an iterator.
+    """
+    sequence = iter([
+        1, 2, 3,
+        4, 5, 6,
+        7, 8, 9,
+    ])
+    expected = [
+        [1, 2, 3],
+        [4, 5, 6],
+        [7, 8, 9],
+    ]
+    assert list(chunk(sequence, 3)) == expected
 
 
 def test_format_yyyymmdd_hhmmss_ssssss():

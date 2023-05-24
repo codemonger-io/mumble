@@ -4,6 +4,8 @@
 """
 
 from datetime import datetime, timezone
+from itertools import islice
+from typing import Iterable, List, TypeVar
 from urllib.parse import quote
 import pytz
 
@@ -30,6 +32,17 @@ def to_urlsafe_base64(b64: str) -> str:
     Removes trailing '='.
     """
     return b64.rstrip('=').replace('+', '-').replace('/', '_')
+
+
+T = TypeVar('T')
+
+def chunk(sequence: Iterable[T], size: int) -> Iterable[List[T]]:
+    """Splits a given sequence into chunks of a specified size.
+    """
+    iter_seq = iter(sequence)
+        # makes sure that the input is an iterator,
+        # otherwise, ends up with an infinite loop
+    return iter(lambda: list(islice(iter_seq, size)), [])
 
 
 def format_datetime_in_utc(format: str, time: datetime) -> str: # pylint: disable=redefined-builtin
