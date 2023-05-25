@@ -142,6 +142,7 @@ export class MumbleApi extends Construct {
     userTable.userTable.grantReadData(getOutboxActivitiesLambda);
     objectStore.objectTable.grantReadData(getOutboxActivitiesLambda);
     objectStore.grantGetFromOutbox(getOutboxActivitiesLambda);
+    objectStore.grantGetFromObjectsFolder(getOutboxActivitiesLambda);
     systemParameters.domainNameParameter.grantRead(getOutboxActivitiesLambda);
     // - returns the follower of a given user
     const getFollowersLambda = new PythonFunction(
