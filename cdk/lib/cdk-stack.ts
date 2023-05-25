@@ -67,6 +67,7 @@ export class CdkStack extends Stack {
       deadLetterQueue,
       lambdaDependencies,
       objectStore,
+      userTable,
     });
 
     // outputs
