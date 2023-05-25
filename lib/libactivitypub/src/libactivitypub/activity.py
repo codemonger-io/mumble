@@ -58,6 +58,8 @@ class Activity(DictObject):
             return Create.parse_object(obj)
         if obj_type == 'Follow':
             return Follow.parse_object(obj)
+        if obj_type == 'Like':
+            return Like(obj)
         if obj_type == 'Undo':
             return Undo.parse_object(obj)
         if obj_type == 'Accept':
@@ -326,6 +328,31 @@ class Follow(Activity):
         return Reference(self._underlying['object']).id
 
 
+class Like(Activity):
+    """Wraps a "Like" activity.
+    """
+    def __init__(self, underlying: Dict[str, Any]):
+        """Wraps a given "Like" activity object.
+
+        :raises ValueError: if ``underlying`` does not represent an activity,
+        or if ``underlying`` does not have ``object``.
+        """
+        super().__init__(underlying)
+        if 'object' not in underlying:
+            raise ValueError('invalid like activity: object is missing')
+
+    def visit(self, visitor: 'ActivityVisitor'):
+        visitor.visit_like(self)
+
+    def resolve_objects(self, object_store: ObjectStore):
+        """Resolves the referenced object.
+
+        Resolves ``object``.
+        """
+        super().resolve_objects(object_store)
+        resolve_object(self._underlying['object'], object_store)
+
+
 class Undo(Activity):
     """Wraps an "Undo" activity.
     """
@@ -491,6 +518,11 @@ class ActivityVisitor(ABC):
         """Processes a "Follow" activity.
         """
         LOGGER.debug('ignoring "Follow": %s', follow._underlying) # pylint: disable=protected-access
+
+    def visit_like(self, like: Like):
+        """Processes a "Like" activity.
+        """
+        LOGGER.debug('ignoring "Like": %s', like._underlying) # pylint: disable=protected-access
 
     def visit_undo(self, undo: Undo):
         """Processes an "Undo" activity.
