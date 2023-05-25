@@ -114,6 +114,31 @@ def make_user_outbox_key(username: str, unique_part: str) -> str:
     return f'outbox/users/{username}/{unique_part}.json'
 
 
+def parse_user_object_key(key: str) -> Tuple[str, str, str, str]:
+    """Parses a given object key in user's objects folder.
+
+    ``key`` must be in the form
+    "objects/users/<username>/<category>/<unique-part>.<extension>".
+
+    :returns: tuple of the username, category, unique part, and extention.
+    the extension may be empty string. the extension includes the leading dot.
+
+    :raise ValueError: if ``key`` does not represent the object in user's
+    objects folder.
+    """
+    match = re.match(
+        r'^objects\/users\/([^/]+)\/([^/]+)\/([^/.]+)(\.[^/]+)?$',
+        key,
+    )
+    if match is None:
+        raise ValueError(f'not user object key: {key}')
+    username = match[1]
+    category = match[2]
+    unique_part = match[3]
+    extension = match[4] or ''
+    return username, category, unique_part, extension
+
+
 def make_user_post_object_key(username: str, unique_part: str) -> str:
     """Makes the object key for user's post.
     """

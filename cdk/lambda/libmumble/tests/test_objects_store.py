@@ -11,6 +11,7 @@ from libmumble.objects_store import (
     get_username_from_outbox_key,
     get_username_from_staging_outbox_key,
     parse_user_inbox_key,
+    parse_user_object_key,
 )
 
 
@@ -146,3 +147,27 @@ def test_get_username_from_outbox_key_with_invalid_key():
     key = 'staging/users/kemoto/note.json'
     with pytest.raises(ValueError):
         get_username_from_outbox_key(key)
+
+
+def test_parse_user_object_key_with_post_key():
+    """Tests ``parse_user_object_key`` with a valid post key.
+    """
+    key = 'objects/users/kemoto/posts/abcdefg.json'
+    expected = ('kemoto', 'posts', 'abcdefg', '.json')
+    assert parse_user_object_key(key) == expected
+
+
+def test_parse_user_object_key_with_media_key():
+    """Tests ``parse_user_object_key`` with a valid media key.
+    """
+    key = 'objects/users/kemoto/media/logo.png'
+    expected = ('kemoto', 'media', 'logo', '.png')
+    assert parse_user_object_key(key) == expected
+
+
+def test_parse_user_object_key_without_unique_part():
+    """Tests ``parse_user_object_key`` without the unique part.
+    """
+    key = 'objects/users/kemoto/posts/'
+    with pytest.raises(ValueError):
+        parse_user_object_key(key)
