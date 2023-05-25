@@ -360,6 +360,9 @@ class UserTable(TableWrapper):
     def add_user_follower(self, username: str, follow: Follow):
         """Adds a follower of a given user.
 
+        Note that this method does not increment the ``followerCount`` property
+        of the user.
+
         :param Follow follow: "Follow" activity.
 
         :raises ValueError: if the object of ``follow`` is not the specified
@@ -391,22 +394,6 @@ class UserTable(TableWrapper):
                 Item=item,
                 ConditionExpression=Attr('pk').not_exists(),
             )
-            # increments the number of followers
-            LOGGER.debug('incrementing follower count')
-            res = self._table.update_item(
-                Key=UserTable.make_user_key(username),
-                AttributeUpdates={
-                    'followerCount': {
-                        'Value': 1,
-                        'Action': 'ADD',
-                    },
-                },
-                ReturnValues='UPDATED_NEW',
-            )
-            LOGGER.debug(
-                'new follower count: %d',
-                res['Attributes'].get('followerCount'),
-            )
         except self.ConditionalCheckFailedException:
             LOGGER.debug('existing follower')
             # follower count should stay
@@ -419,6 +406,9 @@ class UserTable(TableWrapper):
 
     def remove_user_follower(self, username: str, follow: Follow):
         """Removes a follower of a given user.
+
+        Note that this method does not decrement the ``followerCount`` property
+        of the user.
 
         :raises ValueError: if the object of ``follow`` is not the specified
         user.
@@ -446,22 +436,6 @@ class UserTable(TableWrapper):
                     follow.id,
                     res['Attributes'].get('followActivityId'),
                 )
-            # decrements the number of followers
-            LOGGER.debug('decrementing follower count')
-            res = self._table.update_item(
-                Key=UserTable.make_user_key(username),
-                AttributeUpdates={
-                    'followerCount': {
-                        'Value': -1,
-                        'Action': 'ADD',
-                    },
-                },
-                ReturnValues='UPDATED_NEW',
-            )
-            LOGGER.debug(
-                'new follower count: %d',
-                res['Attributes'].get('followerCount'),
-            )
         except self.ConditionalCheckFailedException:
             LOGGER.debug('non-existing follower')
             # follower cound should stay
