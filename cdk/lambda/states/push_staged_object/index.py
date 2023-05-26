@@ -12,8 +12,13 @@ import os
 import boto3
 from libactivitypub.data_objects import Note
 from libactivitypub.objects import DictObject
+from libmumble.exceptions import CorruptedDataError
 from libmumble.object_table import ObjectTable
-from libmumble.objects_store import dict_as_object_key, load_object
+from libmumble.objects_store import (
+    dict_as_object_key,
+    load_object,
+    parse_user_object_key,
+)
 
 
 LOGGER = logging.getLogger(__name__)
@@ -25,10 +30,10 @@ OBJECT_TABLE_NAME = os.environ['OBJECT_TABLE_NAME']
 OBJECT_TABLE = ObjectTable(boto3.resource('dynamodb').Table(OBJECT_TABLE_NAME))
 
 
-def push_object(obj: DictObject):
-    """Pushes a given object into the object table.
+def push_post(obj: DictObject):
+    """Pushes a given post object into the object table.
 
-    :raises TypeError: if ``obj`` is not able to be pushed to the object table.
+    :raises TypeError: if ``obj`` is not a post object.
 
     :raises DuplicateItemError: if ``obj`` is already in the object table.
 
@@ -55,10 +60,18 @@ def lambda_handler(event, _context):
             }
         }
 
+    ``key`` must be in the form
+    "objects/users/<username>/<category>/<unique-part>.<extension>",
+    where ``category`` is either "posts" or "media".
+
+    Does nothing if ``category`` is "media".
+
     :raises ValueError: if the loaded object is invalid.
 
     :raises TypeError: if ``object`` is invalid,
     or if the loaded object is invalid.
+
+    :raises CorruptedDataError: if the category is none of "posts" and "media".
 
     :raises NotFoundError: if the object is not found.
 
@@ -69,6 +82,12 @@ def lambda_handler(event, _context):
     """
     LOGGER.debug('pushing staged object: %s', event)
     object_key = dict_as_object_key(event['object'])
-    LOGGER.debug('loading object: %s', object_key)
-    obj = load_object(boto3.client('s3'), object_key)
-    push_object(obj)
+    _, category, _, _ = parse_user_object_key(object_key['key'])
+    if category == 'posts':
+        obj = load_object(boto3.client('s3'), object_key)
+        push_post(obj)
+    elif category == 'media':
+        # media object should have been pushed to the object table
+        LOGGER.debug('ignores media object')
+    else:
+        raise CorruptedDataError(f'unsupported category: {category}')
