@@ -4,6 +4,7 @@
 """
 
 from libactivitypub.utils import (
+    is_sequence_of,
     is_str_or_strs,
     parse_acct_uri,
     parse_webfinger_id,
@@ -77,3 +78,43 @@ def test_is_str_or_strs_with_str_iterator():
     """Tests ``is_str_or_strs`` with an iterator of ``str``.
     """
     assert not is_str_or_strs(iter(['one', 'two', 'three']))
+
+
+def test_is_str_or_strs_with_str_to_str_dict():
+    """Tests ``is_str_or_strs`` with a ``dict`` that maps ``str`` to ``str``.
+    """
+    assert not is_str_or_strs({'one': '1', 'two': '2', 'three': '3'})
+
+
+def test_is_sequence_of():
+    """Tests ``is_sequence_of`` with a list.
+    """
+    assert is_sequence_of([1, 2, 3], lambda x: x > 0)
+
+
+def test_is_sequence_of_with_unsatisfied_predicate():
+    """Tests ``is_sequence_of`` with a list that includes an item not
+    satisfying the predicate.
+    """
+    assert not is_sequence_of([1, 0, 3], lambda x: x > 0)
+
+
+def test_is_sequence_of_with_iterator():
+    """Tests ``is_sequence_of`` with an iterator.
+    """
+    assert not is_sequence_of(iter([1, 2, 3]), lambda _: True)
+
+
+def test_is_sequence_of_with_dict():
+    """Tests ``is_sequence_of`` with a ``dict``.
+    """
+    assert not is_sequence_of(
+        { 1: 'one', 2: 'two', 3: 'three' },
+        lambda _: True,
+    )
+
+
+def test_is_sequence_of_with_int():
+    """Tests ``is_sequence_of`` with an ``int``.
+    """
+    assert not is_sequence_of(123, lambda _: True)

@@ -3,7 +3,7 @@
 """Utilities.
 """
 
-from typing import Any, Tuple
+from typing import Any, Callable, Tuple
 
 
 def parse_webfinger_id(account: str) -> Tuple[str, str]:
@@ -47,8 +47,20 @@ def is_str_or_strs(value: Any) -> bool:
     """
     if isinstance(value, str):
         return True
+    return is_sequence_of(value, lambda s: isinstance(s, str))
+
+
+def is_sequence_of(value: Any, predicate: Callable[[Any], bool]) -> bool:
+    """Returns if a given value is a sequence of values that satisfy a
+    specified predicate.
+
+    :param Callable[[Any], bool] predicate: function that returns ``True`` if
+    a given value satisfies the predicate.
+    """
     try:
-        len(value) # should be non-iterator
-        return all((isinstance(s, str) for s in value))
+        size = len(value)
+        return all((predicate(value[i]) for i in range(0, size)))
     except TypeError:
+        return False
+    except KeyError:
         return False
