@@ -20,6 +20,7 @@ import {
 
 import type { DeploymentStage } from './deployment-stage';
 import type { LambdaDependencies } from './lambda-dependencies';
+import { MEDIA_FOLDER_PREFIX } from './object-store';
 import type { ObjectStore } from './object-store';
 import type { SystemParameters } from './system-parameters';
 import type { UserTable } from './user-table';
@@ -1351,6 +1352,16 @@ export class MumbleApi extends Construct {
         defaultTtl: Duration.seconds(30),
       },
     );
+    // - cache policy for media files
+    const mediaCachePolicy = new cloudfront.CachePolicy(
+      this,
+      'MumbleApiMediaCachePolicy',
+      {
+        comment: `Mumble API cache policy for media files (${deploymentStage})`,
+        // TODO: set longer duration for production
+        defaultTtl: Duration.minutes(15),
+      },
+    );
     // - CloudFront functions (provided only in development)
     const requestHandlerFunctions: FunctionProps[] = [
       // forwards Date header to the origin as X-Signature-Date
@@ -1390,6 +1401,13 @@ export class MumbleApi extends Construct {
               ),
             },
           ],
+        },
+        additionalBehaviors: {
+          [`${MEDIA_FOLDER_PREFIX}*`]: {
+            origin: new origins.S3Origin(objectStore.objectsBucket),
+            cachePolicy: mediaCachePolicy,
+            viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.HTTPS_ONLY,
+          },
         },
         enableLogging: true,
         // TODO: set domain name and certificate for production

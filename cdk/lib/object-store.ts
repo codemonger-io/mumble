@@ -29,6 +29,8 @@ export const OUTBOX_PREFIX = 'outbox/';
 export const STAGING_OUTBOX_PREFIX = 'staging/';
 /** Path prefix of the objects folder. */
 export const OBJECTS_FOLDER_PREFIX = 'objects/';
+/** Path prefix of the media folder. */
+export const MEDIA_FOLDER_PREFIX = 'media/';
 
 /** Properties for {@link ObjectStore}. */
 export interface Props {
@@ -74,7 +76,14 @@ export interface Props {
  *
  * I am planning to further split folders in user's folder:
  * - `objects/users/{username}/posts`: for posts
- * - `objects/users/{username}/media`: for media files: e.g., images, videos
+ * - `objects/users/{username}/media`: for private media files (TBC)
+ *
+ * #### Media
+ *
+ * The media (`media`) folder stores public media files; e.g., images, videos.
+ *
+ * Every user `{username}` has a dedicated folder in the media folder:
+ * `media/users/{username}`
  */
 export class ObjectStore extends Construct {
   /** S3 bucket for objects. */
