@@ -4,8 +4,9 @@
 """
 
 import logging
-from typing import Any, Dict, Union
+from typing import Any, Dict
 from .objects import DictObject, Reference
+from .utils import is_sequence_of
 
 
 LOGGER = logging.getLogger('libactivitypub.data_objects')
@@ -29,7 +30,8 @@ class Note(DictObject):
         or if ``underlying`` has no "content",
         or if ``underlying`` has a non-str "content",
         or if ``underlying`` has a non-str "attributedTo",
-        or if ``underlying`` has a non-reference "replies".
+        or if ``underlying`` has a non-reference "replies",
+        or if ``underlying`` has a non-sequence "attachment".
         """
         super().__init__(underlying)
         if 'content' not in underlying:
@@ -48,6 +50,11 @@ class Note(DictObject):
             )
         if 'replies' in underlying:
             Reference(underlying['replies']) # type check
+        if (
+            'attachment' in underlying
+            and not is_sequence_of(underlying['attachment'], lambda _: True)
+        ):
+            raise TypeError('attachment must be a sequence')
 
     @property
     def attributed_to(self) -> str:
