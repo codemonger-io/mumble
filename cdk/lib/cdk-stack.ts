@@ -1,6 +1,7 @@
 import {
   CfnOutput,
   Duration,
+  Fn,
   RemovalPolicy,
   Stack,
   StackProps,
@@ -15,6 +16,7 @@ import { MumbleApi } from './mumble-api';
 import { ObjectStore } from './object-store';
 import { Statistics } from './statistics';
 import { SystemParameters } from './system-parameters';
+import { UserPool } from './user-pool';
 import { UserTable } from './user-table';
 
 export interface Props extends StackProps {
@@ -43,6 +45,9 @@ export class CdkStack extends Stack {
       'LambdaDependencies',
     );
     const userTable = new UserTable(this, 'UserTable', {
+      deploymentStage,
+    });
+    const userPool = new UserPool(this, 'UserPool', {
       deploymentStage,
     });
     const objectStore = new ObjectStore(this, 'ObjectStore', {
@@ -74,6 +79,23 @@ export class CdkStack extends Stack {
     new CfnOutput(this, 'MumbleApiDistributionDomainName', {
       description: 'CloudFront distribution domain name of the Mumble endpoints API',
       value: mumbleApi.distribution.distributionDomainName,
+    });
+    new CfnOutput(this, 'UserPoolId', {
+      description: 'ID of the user pool',
+      value: userPool.userPool.userPoolId,
+    });
+    new CfnOutput(this, 'UserPoolHostedUiClientId', {
+      description: 'ID of the user pool client with the hosted UI',
+      value: userPool.hostedUiClient.userPoolClientId,
+    });
+    new CfnOutput(this, 'UserPoolDomainName', {
+      description: 'Domain name of the user pool',
+      value: Fn.join('', [
+        userPool.userPoolDomain.domainName,
+        '.auth.',
+        Stack.of(this).region,
+        '.amazoncognito.com',
+      ]),
     });
     new CfnOutput(this, 'ObjectsBucketName', {
       description: 'Name of the S3 bucket that stores objects',
