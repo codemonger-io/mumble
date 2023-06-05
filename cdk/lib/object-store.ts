@@ -137,6 +137,16 @@ export class ObjectStore extends Construct {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       encryption: s3.BucketEncryption.S3_MANAGED,
       eventBridgeEnabled: true,
+      cors: [
+        {
+          allowedMethods: [
+            s3.HttpMethods.GET,
+            s3.HttpMethods.PUT,
+          ],
+          allowedOrigins: ['*'], // TODO: limit for production
+          allowedHeaders: ['*'],
+        },
+      ],
       removalPolicy: RemovalPolicy.RETAIN,
     });
 

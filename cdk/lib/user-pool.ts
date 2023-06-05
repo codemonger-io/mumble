@@ -1,5 +1,6 @@
 import {
   Duration,
+  Fn,
   RemovalPolicy,
   aws_cognito as cognito,
   aws_iam as iam,
@@ -7,11 +8,15 @@ import {
 import { Construct } from "constructs";
 
 import type { DeploymentStage } from './deployment-stage';
+import type { ObjectStore } from './object-store';
+import { MEDIA_FOLDER_PREFIX } from './object-store';
 
 /** Properties for {@link UserPool}. */
 export interface Props {
   /** Deployment stage. */
   readonly deploymentStage: DeploymentStage;
+  /** Object store. */
+  readonly objectStore: ObjectStore;
 }
 
 /** CDK Construct that provisions the user pool for authentication. */
@@ -22,11 +27,13 @@ export class UserPool extends Construct {
   readonly userPoolDomain: cognito.UserPoolDomain;
   /** Hosted UI client. */
   readonly hostedUiClient: cognito.UserPoolClient;
+  /** Identity pool. */
+  readonly identityPool: cognito.CfnIdentityPool;
 
   constructor(scope: Construct, id: string, props: Props) {
     super(scope, id);
 
-    const { deploymentStage } = props;
+    const { deploymentStage, objectStore } = props;
 
     this.userPool = new cognito.UserPool(this, 'UserPool', {
       selfSignUpEnabled: false,
@@ -87,7 +94,7 @@ export class UserPool extends Construct {
       preventUserExistenceErrors: true,
     });
     // identity pool: Hosted UI client does not work without this
-    const identityPool = new cognito.CfnIdentityPool(this, 'IdentityPool', {
+    this.identityPool = new cognito.CfnIdentityPool(this, 'IdentityPool', {
       allowUnauthenticatedIdentities: false,
       allowClassicFlow: false,
       cognitoIdentityProviders: [
@@ -98,25 +105,62 @@ export class UserPool extends Construct {
         },
       ],
     });
-    // - role for any federated identities (no direct AWS access needed)
+    // - tags "cognito:username" with "username"
+    const identityPoolTags = new cognito.CfnIdentityPoolPrincipalTag(
+      this,
+      'IdentityPoolTags',
+      {
+        identityPoolId: this.identityPoolId,
+        identityProviderName: this.userPool.userPoolProviderName,
+        useDefaults: false,
+        principalTags: {
+          'username': 'cognito:username',
+        },
+      },
+    );
+    // - role for any federated identities
+    //   allows a user to put an object into user's folder
     const authenticatedRole = new iam.Role(this, 'AuthenticatedRole', {
-      description: 'Authenticated but no AWS access is allowed',
+      description: 'Allows Mumble users to upload media files',
       assumedBy: new iam.WebIdentityPrincipal('cognito-identity.amazonaws.com')
         .withConditions({
           StringEquals: {
-            'cognito-identity.amazonaws.com:aud': identityPool.ref,
+            'cognito-identity.amazonaws.com:aud': this.identityPoolId,
           },
           'ForAnyValue:StringLike': {
             'cognito-identity.amazonaws.com:amr': 'authenticated',
           },
-        }),
+        })
+        .withSessionTags(),
       inlinePolicies: {
-        prohibited: new iam.PolicyDocument({
+        'media-upload': new iam.PolicyDocument({
           statements: [
             new iam.PolicyStatement({
-              effect: iam.Effect.DENY,
-              actions: ['*'],
-              resources: ['*'],
+              effect: iam.Effect.ALLOW,
+              actions: ['s3:ListBucket'],
+              resources: [objectStore.objectsBucket.bucketArn],
+              conditions: {
+                StringLike: {
+                  's3:prefix': [
+                    MEDIA_FOLDER_PREFIX +
+                      'users/${aws:PrincipalTag/username}/*',
+                  ],
+                },
+              },
+            }),
+            new iam.PolicyStatement({
+              effect: iam.Effect.ALLOW,
+              actions: [
+                's3:GetObject',
+                's3:PutObject',
+              ],
+              resources: [
+                Fn.join('', [
+                  objectStore.objectsBucket.bucketArn,
+                  '/' + MEDIA_FOLDER_PREFIX + 'users/',
+                  '${aws:PrincipalTag/username}/*',
+                ]),
+              ],
             }),
           ],
         }),
@@ -126,11 +170,16 @@ export class UserPool extends Construct {
       this,
       'IdentityPoolRoleAttachment',
       {
-        identityPoolId: identityPool.ref,
+        identityPoolId: this.identityPoolId,
         roles: {
           authenticated: authenticatedRole.roleArn,
         },
       },
     );
+  }
+
+  /** Identity pool ID. */
+  get identityPoolId(): string {
+    return this.identityPool.ref;
   }
 }

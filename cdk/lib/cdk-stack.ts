@@ -47,11 +47,12 @@ export class CdkStack extends Stack {
     const userTable = new UserTable(this, 'UserTable', {
       deploymentStage,
     });
-    const userPool = new UserPool(this, 'UserPool', {
-      deploymentStage,
-    });
     const objectStore = new ObjectStore(this, 'ObjectStore', {
       deploymentStage,
+    });
+    const userPool = new UserPool(this, 'UserPool', {
+      deploymentStage,
+      objectStore,
     });
     const dispatcher = new Dispatcher(this, 'Dispatcher', {
       deadLetterQueue,
@@ -96,6 +97,10 @@ export class CdkStack extends Stack {
         Stack.of(this).region,
         '.amazoncognito.com',
       ]),
+    });
+    new CfnOutput(this, 'IdentityPoolId', {
+      description: 'ID of the identity pool',
+      value: userPool.identityPoolId,
     });
     new CfnOutput(this, 'ObjectsBucketName', {
       description: 'Name of the S3 bucket that stores objects',
