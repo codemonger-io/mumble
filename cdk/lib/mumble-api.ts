@@ -10,7 +10,7 @@ import { Construct } from 'constructs';
 import { PythonFunction } from '@aws-cdk/aws-lambda-python-alpha';
 
 import { BundledCode, FunctionProps } from 'cdk-cloudfront-function-bundle';
-import { RestApiWithSpec } from 'cdk-rest-api-with-spec';
+import { RestApiWithSpec, augmentAuthorizer } from 'cdk-rest-api-with-spec';
 import {
   type MappingTemplateItem,
   composeMappingTemplate,
@@ -23,6 +23,7 @@ import type { LambdaDependencies } from './lambda-dependencies';
 import { MEDIA_FOLDER_PREFIX } from './object-store';
 import type { ObjectStore } from './object-store';
 import type { SystemParameters } from './system-parameters';
+import type { UserPool } from './user-pool';
 import type { UserTable } from './user-table';
 
 export interface Props {
@@ -32,6 +33,8 @@ export interface Props {
   readonly systemParameters: SystemParameters;
   /** Lambda dependencies. */
   readonly lambdaDependencies: LambdaDependencies;
+  /** User pool. */
+  readonly userPool: UserPool;
   /** User table. */
   readonly userTable: UserTable;
   /** Object store. */
@@ -59,6 +62,7 @@ export class MumbleApi extends Construct {
       lambdaDependencies,
       objectStore,
       systemParameters,
+      userPool,
       userTable,
     } = props;
     const { libActivityPub, libCommons, libMumble } = lambdaDependencies;
@@ -241,6 +245,9 @@ export class MumbleApi extends Construct {
         version: '0.0.1',
       },
       openApiOutputPath: path.join('openapi', `api-${deploymentStage}.json`),
+      defaultCorsPreflightOptions: {
+        allowOrigins: apigateway.Cors.ALL_ORIGINS,
+      },
       deploy: true,
       deployOptions: {
         stageName: 'staging',
@@ -402,6 +409,25 @@ export class MumbleApi extends Construct {
           'publicKey',
           'type',
         ],
+      },
+    });
+    // - Mumble-specific user configuration
+    const userConfigModel = this.api.addModel('UserConfig', {
+      description: 'Mumble-specif user configuration',
+      contentType: 'application/json',
+      schema: {
+        schema: apigateway.JsonSchemaVersion.DRAFT4,
+        title: 'object',
+        description: 'Mumble-specif user configuration',
+        type: apigateway.JsonSchemaType.OBJECT,
+        properties: {
+          objectsBucketName: {
+            description: 'Name of the S3 bucket to store objects',
+            type: apigateway.JsonSchemaType.STRING,
+            example: 'mumble-objects-bucket',
+          },
+        },
+        required: ['objectsBucketName'],
       },
     });
     // - Object
@@ -597,6 +623,22 @@ export class MumbleApi extends Construct {
         validateRequestParameters: true,
       },
     );
+
+    // authorizer
+    const authorizer = augmentAuthorizer(
+      new apigateway.CognitoUserPoolsAuthorizer(this, 'UserPoolAuthorizer', {
+        cognitoUserPools: [userPool.userPool],
+      }),
+      {
+        type: 'apiKey',
+        in: 'header',
+        name: 'Authorization',
+      },
+    );
+    const authorizerProps = {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    };
 
     // mapping template components
     function urlParameterField(name: string): MappingTemplateItem {
@@ -801,6 +843,56 @@ export class MumbleApi extends Construct {
           {
             statusCode: '500',
             description: 'internal server error',
+          },
+        ],
+      },
+    );
+    // /users/{username}/config
+    const config = user.addResource('config');
+    // - GET: returns the Mumble-specific configuration for a given user
+    //
+    //   This endpoint does not need any dynamic information, so it is mocked.
+    //   But authorization is required.
+    config.addMethod(
+      'GET',
+      new apigateway.MockIntegration({
+        requestTemplates: {
+          'application/json': '{"statusCode": 200}',
+        },
+        integrationResponses: [
+          {
+            statusCode: '200',
+            responseTemplates: {
+              'application/json': `{
+                "objectsBucketName": "${objectStore.objectsBucket.bucketName}"
+              }`,
+            },
+          },
+        ],
+      }),
+      {
+        operationName: 'getConfig',
+        description:
+          'Returns the Mumble-specific configuration for a given user',
+        requestParameterSchemas: {
+          'method.request.path.username': {
+            description: 'Username to obtain the configuration',
+            required: true,
+            schema: {
+              type: 'string',
+            },
+            example: 'kemoto',
+          },
+        },
+        ...authorizerProps,
+        requestValidator,
+        methodResponses: [
+          {
+            statusCode: '200',
+            description: 'successful operation',
+            responseModels: {
+              'application/json': userConfigModel,
+            },
           },
         ],
       },
@@ -1330,6 +1422,7 @@ export class MumbleApi extends Construct {
     // configures the CloudFront distribution
     // - cache policy
     const forwardedHeaders = [
+      'Authorization',
       'X-Signature-Date', // Date should not be cached. this header exists only if the request has a Signature
       'Digest',
       'Signature',
@@ -1388,6 +1481,7 @@ export class MumbleApi extends Construct {
           cachePolicy,
           allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.HTTPS_ONLY,
+          responseHeadersPolicy: cloudfront.ResponseHeadersPolicy.CORS_ALLOW_ALL_ORIGINS_WITH_PREFLIGHT,
           functionAssociations: [
             {
               eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
@@ -1407,6 +1501,7 @@ export class MumbleApi extends Construct {
             origin: new origins.S3Origin(objectStore.objectsBucket),
             cachePolicy: mediaCachePolicy,
             viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.HTTPS_ONLY,
+            responseHeadersPolicy: cloudfront.ResponseHeadersPolicy.CORS_ALLOW_ALL_ORIGINS,
           },
         },
         enableLogging: true,

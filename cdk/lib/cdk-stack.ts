@@ -67,6 +67,7 @@ export class CdkStack extends Stack {
       lambdaDependencies,
       objectStore,
       systemParameters,
+      userPool,
       userTable,
     });
     const statistics = new Statistics(this, 'Statistics', {
