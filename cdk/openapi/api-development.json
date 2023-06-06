@@ -100,6 +100,40 @@
         }
       }
     },
+    "/users/{username}/config": {
+      "get": {
+        "description": "Returns the Mumble-specific configuration for a given user",
+        "parameters": [
+          {
+            "description": "Username to obtain the configuration",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "kemoto",
+            "name": "username",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MumbleApimumbleapidevelopmentUserConfig40368214"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "MumbleApiUserPoolAuthorizerA1863467": []
+          }
+        ]
+      }
+    },
     "/users/{username}/inbox": {
       "post": {
         "description": "Posts an activity to the inbox of a given user",
@@ -672,6 +706,21 @@
         "title": "Actor",
         "type": "object"
       },
+      "MumbleApimumbleapidevelopmentUserConfig40368214": {
+        "description": "Mumble-specif user configuration",
+        "properties": {
+          "objectsBucketName": {
+            "description": "Name of the S3 bucket to store objects",
+            "example": "mumble-objects-bucket",
+            "type": "string"
+          }
+        },
+        "required": [
+          "objectsBucketName"
+        ],
+        "title": "object",
+        "type": "object"
+      },
       "MumbleApimumbleapidevelopmentObject9AEA00B2": {
         "description": "Object",
         "properties": {
@@ -834,6 +883,12 @@
         "title": "paginated"
       }
     },
-    "securitySchemes": {}
+    "securitySchemes": {
+      "MumbleApiUserPoolAuthorizerA1863467": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Authorization"
+      }
+    }
   }
 }
