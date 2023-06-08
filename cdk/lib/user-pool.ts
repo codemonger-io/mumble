@@ -151,6 +151,7 @@ export class UserPool extends Construct {
             new iam.PolicyStatement({
               effect: iam.Effect.ALLOW,
               actions: [
+                's3:DeleteObject',
                 's3:GetObject',
                 's3:PutObject',
               ],

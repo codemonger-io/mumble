@@ -140,6 +140,7 @@ export class ObjectStore extends Construct {
       cors: [
         {
           allowedMethods: [
+            s3.HttpMethods.DELETE,
             s3.HttpMethods.GET,
             s3.HttpMethods.PUT,
           ],
