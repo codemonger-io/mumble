@@ -258,6 +258,57 @@
             "description": "internal server error"
           }
         }
+      },
+      "post": {
+        "description": "Posts an activity or object to the staging outbox of a given user",
+        "requestBody": {
+          "content": {
+            "application/activity+json": {
+              "schema": {
+                "$ref": "#/components/schemas/MumbleApimumbleapidevelopmentObject9AEA00B2"
+              }
+            },
+            "application/ld+json": {
+              "schema": {
+                "$ref": "#/components/schemas/MumbleApimumbleapidevelopmentObject9AEA00B2"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "description": "Username who posts an activity",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "kemoto",
+            "name": "username",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation"
+          },
+          "400": {
+            "description": "request is malformed"
+          },
+          "403": {
+            "description": "user is not allowed to post"
+          },
+          "404": {
+            "description": "user is not found"
+          },
+          "429": {
+            "description": "there are too many requests"
+          }
+        },
+        "security": [
+          {
+            "MumbleApiUserPoolAuthorizerA1863467": []
+          }
+        ]
       }
     },
     "/users/{username}/followers": {
