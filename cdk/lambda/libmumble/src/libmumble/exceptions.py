@@ -72,6 +72,11 @@ class UnauthorizedError(MumbleBaseException):
     """
 
 
+class ForbiddenError(MumbleBaseException):
+    """Raised if a credential is valid but not allowed to access a resource.
+    """
+
+
 class CommunicationError(MumbleBaseException):
     """Raised if communication between other server fails.
     """
