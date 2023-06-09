@@ -40,7 +40,9 @@ LOGGER.setLevel(logging.DEBUG)
 class User: # pylint: disable=too-many-instance-attributes
     """User information.
     """
-    domain_name: str
+    domain_name: Optional[str]
+    """The user object is domain-agnostic if this is ``None``. You cannot
+    access the ID and URIs of a domain-agnostic user."""
     username: str
     name: str
     preferred_username: str
@@ -58,7 +60,7 @@ class User: # pylint: disable=too-many-instance-attributes
 
     def __init__( # pylint: disable=too-many-arguments
         self,
-        domain_name: str,
+        domain_name: Optional[str],
         username: str,
         name: str,
         preferred_username: str,
@@ -74,6 +76,9 @@ class User: # pylint: disable=too-many-instance-attributes
         table: Optional['UserTable']=None,
     ):
         """Initializes with given parameters.
+
+        :param Optional[str] domain_name: domain name of the user. the
+        initialized user object becomes domain-agnostic if this is ``None``.
 
         :param Optional[UserTable] table: ``UserTable`` that stores the user.
         optional, though, some operation on ``User`` needs this.
@@ -96,7 +101,7 @@ class User: # pylint: disable=too-many-instance-attributes
     @staticmethod
     def parse_item(
         item: Dict[str, Any],
-        domain_name: str,
+        domain_name: Optional[str]=None,
         table: Optional['UserTable']=None,
     ) -> 'User':
         """Parses a given item in the user table.
@@ -120,6 +125,9 @@ class User: # pylint: disable=too-many-instance-attributes
                 'updatedAt': '<yyyy-mm-ddTHH:MM:ss.SSSSSSZ>',
                 'lastActivityAt': '<yyyy-mm-ddTHH:MM:ss.SSSSSSZ>'
             }
+
+        :param Optional[str] domain_name: domain name of the user. a returned
+        user object becomes domain-agnostic if omitted.
 
         :param Optional[UserTable] table: ``UserTable`` that stores the user.
         optional, though, some operation on ``User`` needs this.
@@ -154,30 +162,42 @@ class User: # pylint: disable=too-many-instance-attributes
     @property
     def id(self) -> str: # pylint: disable=invalid-name
         """ID of the user.
+
+        :raises AttributeError: if the user is domain-agnostic.
         """
+        if self.domain_name is None:
+            raise AttributeError('domain-agnostic user has no ID')
         return make_user_id(self.domain_name, self.username)
 
     @property
     def inbox_uri(self) -> str:
         """URI of the inbox.
+
+        :raises AttributeError: if the user is domain-agnostic.
         """
         return make_user_inbox_uri(self.id)
 
     @property
     def outbox_uri(self) -> str:
         """URI of the outbox.
+
+        :raises AttributeError: if the user is domain-agnostic.
         """
         return make_user_outbox_uri(self.id)
 
     @property
     def followers_uri(self) -> str:
         """URI of the followers list.
+
+        :raises AttributeError: if the user is domain-agnostic.
         """
         return make_user_followers_uri(self.id)
 
     @property
     def following_uri(self) -> str:
         """URI of the following list.
+
+        :raises AttributeError: if the user is domain-agnostic.
         """
         return make_user_following_uri(self.id)
 
@@ -246,6 +266,8 @@ class User: # pylint: disable=too-many-instance-attributes
     @cached_property
     def public_key(self) -> PublicKey:
         """Public key information of the user.
+
+        :raises AttributeError: if the user is domain-agnostic.
         """
         return {
             'id': self.key_id,
@@ -256,6 +278,8 @@ class User: # pylint: disable=too-many-instance-attributes
     @property
     def key_id(self) -> str:
         """Key pair ID of the user.
+
+        :raises AttributeError: if the user is domain-agnostic.
         """
         return make_user_key_id(self.id)
 
@@ -301,11 +325,15 @@ class User: # pylint: disable=too-many-instance-attributes
 
     def generate_activity_id(self) -> str:
         """Generates a random ID for an activity of the user.
+
+        :raises AttributeError: if the user is domain-agnostic.
         """
         return generate_user_activity_id(self.id)
 
     def generate_post_id(self) -> str:
         """Generates a random ID for a post of the user.
+
+        :raises AttributeError: if the user is domain-agnostic.
         """
         return generate_user_post_id(self.id)
 
@@ -328,9 +356,12 @@ class UserTable(TableWrapper):
     def find_user_by_username(
         self,
         username: str,
-        domain_name: str,
+        domain_name: Optional[str]=None,
     ) -> Optional[User]:
         """Finds a user associated with a given username.
+
+        :param Optional[str] domain_name: domain name of the user. a returned
+        user object becomes domain-agnostic if omitted.
 
         :returns: ``None`` if no user is associated with ``username``.
 
