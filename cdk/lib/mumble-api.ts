@@ -121,6 +121,28 @@ export class MumbleApi extends Construct {
     );
     userTable.userTable.grantReadData(receiveInboundActivityLambda);
     objectStore.grantPutIntoInbox(receiveInboundActivityLambda);
+    // - receives an activity or object posted to the outbox of a given user
+    const receiveOutboundObjectLambda = new PythonFunction(
+      this,
+      'ReceiveOutboundObjectLambda',
+      {
+        description: 'Receives an activity or object posted to the outbox of a given user',
+        runtime: lambda.Runtime.PYTHON_3_8,
+        architecture: lambda.Architecture.ARM_64,
+        entry: path.join('lambda', 'receive_outbound_object'),
+        index: 'index.py',
+        handler: 'lambda_handler',
+        layers: [libActivityPub, libCommons, libMumble],
+        environment: {
+          USER_TABLE_NAME: userTable.userTable.tableName,
+          OBJECTS_BUCKET_NAME: objectStore.objectsBucket.bucketName,
+        },
+        memorySize: 256,
+        timeout: Duration.seconds(20),
+      },
+    );
+    userTable.userTable.grantReadData(receiveOutboundObjectLambda);
+    objectStore.grantPutIntoStagingOutbox(receiveOutboundObjectLambda);
     // - returns activites in the outbox of a given user
     const getOutboxActivitiesLambda = new PythonFunction(
       this,
@@ -656,6 +678,10 @@ export class MumbleApi extends Construct {
         'username',
         `"$util.escapeJavaScript($util.urlDecode($input.params('username'))).replaceAll("\\'", "'")"`,
       ],
+      bearerUsername: [
+        'bearerUsername',
+        `"$util.escapeJavaScript($context.authorizer.claims['cognito:username']).replaceAll("\\'", "'")"`,
+      ],
       uniquePart: urlParameterField('uniquePart'),
       signature: [
         'signature',
@@ -677,6 +703,7 @@ export class MumbleApi extends Construct {
         'body',
         `"$util.escapeJavaScript($input.body).replaceAll("\\'","'")"`,
       ],
+      bodyObject: ['body', "$input.json('$')"],
       apiDomainName: ifThenElse(
         '$input.params("x-host-header") != ""',
         [[
@@ -919,7 +946,15 @@ export class MumbleApi extends Construct {
             mappingTemplates.body,
             mappingTemplates.apiDomainName,
           ]),
-          // TODO: support application/ld+json
+          'application/ld+json': composeMappingTemplate([
+            mappingTemplates.username,
+            mappingTemplates.signature,
+            mappingTemplates.date,
+            mappingTemplates.digest,
+            mappingTemplates.contentType,
+            mappingTemplates.body,
+            mappingTemplates.apiDomainName,
+          ]),
         },
         integrationResponses: [
           catchErrorsWith(400, 'BadRequestError'),
@@ -1069,6 +1104,78 @@ export class MumbleApi extends Construct {
         ],
       },
     );
+    // - POST: posts an activity or object to the staging outbox of a given
+    //   user
+    outbox.addMethod(
+      'POST',
+      new apigateway.LambdaIntegration(receiveOutboundObjectLambda, {
+        proxy: false,
+        passthroughBehavior: apigateway.PassthroughBehavior.NEVER,
+        requestTemplates: {
+          'application/activity+json': composeMappingTemplate([
+            mappingTemplates.username,
+            mappingTemplates.bearerUsername,
+            mappingTemplates.bodyObject,
+          ]),
+          'application/ld+json': composeMappingTemplate([
+            mappingTemplates.username,
+            mappingTemplates.bearerUsername,
+            mappingTemplates.bodyObject,
+          ]),
+        },
+        integrationResponses: [
+          catchErrorsWith(400, 'BadRequestError'),
+          catchErrorsWith(403, 'ForbiddenError'),
+          catchErrorsWith(404, 'NotFoundError'),
+          catchErrorsWith(429, 'TooManyAccessError'),
+          {
+            statusCode: '200',
+          },
+        ],
+      }),
+      {
+        operationName: 'postActivity',
+        description: 'Posts an activity or object to the staging outbox of a given user',
+        requestParameterSchemas: {
+          'method.request.path.username': {
+            description: 'Username who posts an activity',
+            required: true,
+            schema: {
+              type: 'string',
+            },
+            example: 'kemoto',
+          },
+        },
+        requestModels: {
+          'application/activity+json': objectModel,
+          'application/ld+json': objectModel,
+        },
+        requestValidator,
+        ...authorizerProps,
+        methodResponses: [
+          {
+            statusCode: '200',
+            description: 'successful operation',
+          },
+          {
+            statusCode: '400',
+            description: 'request is malformed',
+          },
+          {
+            statusCode: '403',
+            description: 'user is not allowed to post',
+          },
+          {
+            statusCode: '404',
+            description: 'user is not found',
+          },
+          {
+            statusCode: '429',
+            description: 'there are too many requests',
+          },
+        ],
+      },
+    )
     // /users/{username}/followers
     const followers = user.addResource('followers');
     // - GET: returns the followers of a given user
