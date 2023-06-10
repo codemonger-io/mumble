@@ -632,17 +632,17 @@ class UserTable(TableWrapper):
         :raises TooManyAccessError: if access to the DynamoDB table exceeds
         the limit.
         """
-        updated_at = current_yyyymmdd_hhmmss_ssssss()
+        last_activity_at = current_yyyymmdd_hhmmss_ssssss()
         key = UserTable.make_user_key(username)
         try:
             res = self._table.update_item(
                 Key=key,
-                UpdateExpression='SET #updatedAt = :updatedAt',
+                UpdateExpression='SET #lastActivityAt = :lastActivityAt',
                 ExpressionAttributeNames={
-                    '#updatedAt': 'updatedAt',
+                    '#lastActivityAt': 'lastActivityAt',
                 },
                 ExpressionAttributeValues={
-                    ':updatedAt': updated_at,
+                    ':lastActivityAt': last_activity_at,
                 },
                 ConditionExpression=Attr('pk').exists(),
             )
