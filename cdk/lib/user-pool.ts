@@ -99,7 +99,10 @@ export class UserPool extends Construct {
         logoutUrls: callbackConf.logoutUrls ?? [],
       },
       authFlows: {
-        userSrp: true,
+        adminUserPassword: false,
+        custom: false,
+        userPassword: false,
+        userSrp: false,
       },
       supportedIdentityProviders: [
         cognito.UserPoolClientIdentityProvider.COGNITO,
