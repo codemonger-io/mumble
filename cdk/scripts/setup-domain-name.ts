@@ -6,6 +6,7 @@ import { SSMClient, PutParameterCommand } from '@aws-sdk/client-ssm';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 
+import domainNameConfig from '../configs/domain-name-config';
 import {
   DEPLOYMENT_STAGES,
   DeploymentStage,
@@ -24,7 +25,7 @@ yargs(hideBin(process.argv))
           choices: DEPLOYMENT_STAGES,
         })
         .positional('domain', {
-          describe: 'optional domain name to be assigned. taken from the CloudFormation output if omitted',
+          describe: 'optional domain name to be assigned. if omitted, taken from the CloudFormation output (development), or taken from `configs/domain-name-config.ts` (production)',
           type: 'string',
         });
     },
@@ -33,6 +34,9 @@ yargs(hideBin(process.argv))
         throw new RangeError('invalid deployment stage: ' + stage);
       }
       console.log('configuring stage:', stage);
+      if (stage === 'production') {
+        domain = domain ?? domainNameConfig.domainName;
+      }
       await setupDomainName(stage, domain);
       console.log('done');
     },
