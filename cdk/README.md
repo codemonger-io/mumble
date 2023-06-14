@@ -29,6 +29,43 @@ You should avoid using the default qualifier unless you are using the default to
 BOOTSTRAP_QUALIFIER=mumble2023
 ```
 
+## Preparing configuration files
+
+You have to prepare the following configuration files:
+- [`configs/cognito-callback-urls.ts`](#configscognito-callback-urlsts): contains the list of allowed callback URLs for the Cognito user pool client
+- [`configs/domain-name-config.ts`](#configsdomain-name-configts): contains the domain name and certificate ARN for the Mumble API for production
+
+These files are never committed to this repository because they contain information specific to your environment.
+
+### `configs/cognito-callback-urls.ts`
+
+You can find an example at [`configs/cognito-callback-urls.ts`](./configs/cognito-callback-urls.example.ts).
+If your callback URLs are not determined yet, you can use a copy of the example and [edit them later on AWS console](#configuring-cognito-user-pool-client-callback-urls).
+
+```sh
+cp configs/cognito-callback-urls.example.ts configs/cognito-callback-urls.ts
+```
+
+### `configs/domain-name-config.ts`
+
+You can find an example at [`configs/domain-name-config.example.ts`](./configs/domain-name-config.example.ts).
+If you do not plan to deploy for production, you can use a copy of the example:
+
+```sh
+cp configs/domain-name-config.example.ts configs/domain-name-config.ts
+```
+
+## Provisioning the certificate for the domain name
+
+How to provision the certificate for the domain name is out of the scope of this document.
+Here are some references for you:
+- ["Routing traffic to an Amazon CloudFront distribution by using your domain name" - _Amazon Route 53_](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-to-cloudfront-distribution.html)
+- ["Requirements for using SSL/TLS certificates with CloudFront" - _Amazon CloudFront_](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cnames-and-https-requirements.html)
+- ["Requesting a public certificate" - _AWS Certificate Manager_](https://docs.aws.amazon.com/acm/latest/userguide/gs-acm-request-public.html)
+- ["Using custom URLs by adding alternate domain names (CNAMEs)" - _Amazon CloudFront_](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/CNAMEs.html)
+
+One important requirement you may easily overlook is that the [**certificate must be provisioned in the `us-east-1` region**](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cnames-and-https-requirements.html#https-requirements-certificate-issuer).
+
 ## Provisioning the toolkit stack
 
 This is necessary only once before provisioning the CDK stack for the first time.
@@ -99,7 +136,7 @@ npm run setup-domain-name -- production $YOUR_DOMAIN_NAME
 
 Please replace `$YOUR_DOMAIN_NAME` with your domain name; e.g., `mumble.codemonger.io`.
 
-### User authentication (client-side configuration)
+### Cognito parameters for a Web client
 
 A Web client of the Mumble API will need the following parameters to authenticate users:
 - [Cognito user pool ID](#cognito-user-pool-id)
@@ -108,7 +145,14 @@ A Web client of the Mumble API will need the following parameters to authenticat
 - [Identity pool ID](#identity-pool-id)
 
 These are included in the CloudFormation outputs.
-Please refer to [Section "Outputs from the CDK stack"](#outputs-from-the-cdk-stack) for how to obtain them.
+Please refer to [Section "Outputs from the CDK stack"](#outputs-from-the-cdk-stack) for how to obtain them or follow the above links.
+
+### Configuring Cognito user pool client callback URLs
+
+You can configure the callback URLs with the configuration file (`configs/cognito-callback-urls.ts`), though, you can also do it on AWS console after deploying the CDK stack.
+Here are some references for you:
+- ["Configuring a user pool app client" - _Amazon Cognito_ (hosted UI guide)](https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools-app-idp-settings.html)
+- ["Configuring a user pool app client" - _Amazon Cognito_ (console guide)](https://docs.aws.amazon.com/cognito/latest/developerguide/user-pool-settings-client-apps.html)
 
 ## Outputs from the CDK stack
 
