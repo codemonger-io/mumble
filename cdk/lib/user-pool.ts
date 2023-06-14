@@ -7,17 +7,19 @@ import {
 } from "aws-cdk-lib";
 import { Construct } from "constructs";
 
-import cognitoCallbackUrls from '../configs/cognito-callback-urls';
+import cognitoConfigMap from '../configs/cognito-config';
 
 import type { DeploymentStage } from './deployment-stage';
 import type { ObjectStore } from './object-store';
 import { MEDIA_FOLDER_PREFIX } from './object-store';
 
-/** Callback configuration for the user pool client. */
-interface CallbackConf {
-  /** Callback URLs. */
+/** Configuration for the user pool. */
+interface CognitoConfig {
+  /** Prefix of the domain name. */
+  readonly domainPrefix: string;
+  /** Callback URLs of the user pool clients. */
   readonly callbackUrls: string[];
-  /** Logout callback URLs. */
+  /** Logout callback URLs of the user pool clients. */
   readonly logoutUrls?: string[];
 }
 
@@ -76,14 +78,14 @@ export class UserPool extends Construct {
       },
       removalPolicy: RemovalPolicy.RETAIN,
     });
+    const cognitoConfig: CognitoConfig = cognitoConfigMap[deploymentStage];
     this.userPoolDomain = this.userPool.addDomain('UserPoolDomain', {
       cognitoDomain: {
-        domainPrefix: `mumble-auth-${deploymentStage}`,
+        domainPrefix: cognitoConfig.domainPrefix,
       },
     });
     // Hosted UI client
-    const callbackConf: CallbackConf = cognitoCallbackUrls[deploymentStage];
-    if (callbackConf.callbackUrls.length === 0) {
+    if (cognitoConfig.callbackUrls.length === 0) {
       throw new Error('at least one callback URL must be provided for the Cognito user pool client');
     }
     this.hostedUiClient = this.userPool.addClient('HostedUiClient', {
@@ -95,8 +97,8 @@ export class UserPool extends Construct {
           cognito.OAuthScope.EMAIL,
           cognito.OAuthScope.OPENID,
         ],
-        callbackUrls: callbackConf.callbackUrls,
-        logoutUrls: callbackConf.logoutUrls ?? [],
+        callbackUrls: cognitoConfig.callbackUrls,
+        logoutUrls: cognitoConfig.logoutUrls ?? [],
       },
       authFlows: {
         adminUserPassword: false,
