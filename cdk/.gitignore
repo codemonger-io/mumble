@@ -9,3 +9,7 @@ node_modules
 # CDK asset staging directory
 .cdk.staging
 cdk.out
+
+# config files
+/configs/*.ts
+!/configs/*.example.ts

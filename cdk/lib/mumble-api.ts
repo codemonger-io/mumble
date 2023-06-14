@@ -2,6 +2,7 @@ import * as path from 'path';
 import {
   Duration,
   aws_apigateway as apigateway,
+  aws_certificatemanager as acm,
   aws_cloudfront as cloudfront,
   aws_cloudfront_origins as origins,
   aws_lambda as lambda,
@@ -18,6 +19,8 @@ import {
   ifThenElse,
 } from 'mapping-template-compose';
 
+import domainNameConfig from '../configs/domain-name-config';
+
 import type { DeploymentStage } from './deployment-stage';
 import type { LambdaDependencies } from './lambda-dependencies';
 import { MEDIA_FOLDER_PREFIX } from './object-store';
@@ -25,6 +28,14 @@ import type { ObjectStore } from './object-store';
 import type { SystemParameters } from './system-parameters';
 import type { UserPool } from './user-pool';
 import type { UserTable } from './user-table';
+
+/** Domain name configuration. */
+interface DomainNameConfig {
+  /** Domain name. */
+  readonly domainName: string;
+  /** ARN of the certificate. */
+  readonly certificateArn: string;
+}
 
 export interface Props {
   /** Deployment stage. */
@@ -261,6 +272,13 @@ export class MumbleApi extends Construct {
     objectStore.objectTable.grantReadData(getPostRepliesLambda);
 
     // the API
+    const throttlingParams = deploymentStage === 'production' ? {
+      throttlingBurstLimit: 500,
+      throttlingRateLimit: 1000,
+    } : {
+      throttlingBurstLimit: 50,
+      throttlingRateLimit: 100,
+    };
     this.api = new RestApiWithSpec(this, `mumble-api-${deploymentStage}`, {
       description: `Mumble endpoints API (${deploymentStage})`,
       openApiInfo: {
@@ -275,9 +293,7 @@ export class MumbleApi extends Construct {
         stageName: 'staging',
         description: 'Default deployment',
         loggingLevel: apigateway.MethodLoggingLevel.INFO,
-        // TODO: set different limit in production
-        throttlingBurstLimit: 50,
-        throttlingRateLimit: 100,
+        ...throttlingParams,
       },
     });
 
@@ -1577,6 +1593,21 @@ export class MumbleApi extends Construct {
         handler: 'forwardHostHeader',
       });
     }
+    // - domain name and cerificate (for production)
+    let domainNameAndCertificate;
+    if (deploymentStage === 'production') {
+      const config: DomainNameConfig = domainNameConfig;
+      domainNameAndCertificate = {
+        certificate: acm.Certificate.fromCertificateArn(
+          this,
+          'MumbleApiCertificate',
+          config.certificateArn,
+        ),
+        domainNames: [config.domainName],
+      };
+    } else {
+      domainNameAndCertificate = {};
+    }
     // - distribution
     this.distribution = new cloudfront.Distribution(
       this,
@@ -1612,7 +1643,7 @@ export class MumbleApi extends Construct {
           },
         },
         enableLogging: true,
-        // TODO: set domain name and certificate for production
+        ...domainNameAndCertificate,
       },
     );
   }
