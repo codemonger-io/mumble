@@ -7,9 +7,19 @@ import {
 } from "aws-cdk-lib";
 import { Construct } from "constructs";
 
+import cognitoCallbackUrls from '../configs/cognito-callback-urls';
+
 import type { DeploymentStage } from './deployment-stage';
 import type { ObjectStore } from './object-store';
 import { MEDIA_FOLDER_PREFIX } from './object-store';
+
+/** Callback configuration for the user pool client. */
+interface CallbackConf {
+  /** Callback URLs. */
+  readonly callbackUrls: string[];
+  /** Logout callback URLs. */
+  readonly logoutUrls?: string[];
+}
 
 /** Properties for {@link UserPool}. */
 export interface Props {
@@ -72,6 +82,10 @@ export class UserPool extends Construct {
       },
     });
     // Hosted UI client
+    const callbackConf: CallbackConf = cognitoCallbackUrls[deploymentStage];
+    if (callbackConf.callbackUrls.length === 0) {
+      throw new Error('at least one callback URL must be provided for the Cognito user pool client');
+    }
     this.hostedUiClient = this.userPool.addClient('HostedUiClient', {
       oAuth: {
         flows: {
@@ -81,6 +95,8 @@ export class UserPool extends Construct {
           cognito.OAuthScope.EMAIL,
           cognito.OAuthScope.OPENID,
         ],
+        callbackUrls: callbackConf.callbackUrls,
+        logoutUrls: callbackConf.logoutUrls ?? [],
       },
       authFlows: {
         userSrp: true,
