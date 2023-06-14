@@ -32,19 +32,21 @@ BOOTSTRAP_QUALIFIER=mumble2023
 ## Preparing configuration files
 
 You have to prepare the following configuration files:
-- [`configs/cognito-callback-urls.ts`](#configscognito-callback-urlsts): contains the list of allowed callback URLs for the Cognito user pool client
+- [`configs/cognito-config.ts`](#configscognito-configts): contains the domain prefix of the user pool and the list of allowed callback URLs for the Cognito user pool client
 - [`configs/domain-name-config.ts`](#configsdomain-name-configts): contains the domain name and certificate ARN for the Mumble API for production
 
 These files are never committed to this repository because they contain information specific to your environment.
 
-### `configs/cognito-callback-urls.ts`
+### `configs/cognito-config.ts`
 
-You can find an example at [`configs/cognito-callback-urls.ts`](./configs/cognito-callback-urls.example.ts).
+You can find an example at [`configs/cognito-config.ts`](./configs/cognito-config.example.ts).
 If your callback URLs are not determined yet, you can use a copy of the example and [edit them later on AWS console](#configuring-cognito-user-pool-client-callback-urls).
 
 ```sh
-cp configs/cognito-callback-urls.example.ts configs/cognito-callback-urls.ts
+cp configs/cognito-config.example.ts configs/cognito-config.ts
 ```
+
+You have to specify a unique domain prefix.
 
 ### `configs/domain-name-config.ts`
 
@@ -149,10 +151,10 @@ Please refer to [Section "Outputs from the CDK stack"](#outputs-from-the-cdk-sta
 
 ### Configuring Cognito user pool client callback URLs
 
-You can configure the callback URLs with the configuration file (`configs/cognito-callback-urls.ts`), though, you can also do it on AWS console after deploying the CDK stack.
+You can configure the callback URLs with the configuration file (`configs/cognito-config.ts`), though, you can also do it on AWS console after deploying the CDK stack.
 Here are some references for you:
 - ["Configuring a user pool app client" - _Amazon Cognito_ (hosted UI guide)](https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools-app-idp-settings.html)
-- ["Configuring a user pool app client" - _Amazon Cognito_ (console guide)](https://docs.aws.amazon.com/cognito/latest/developerguide/user-pool-settings-client-apps.html)
+- ["Configuring a user pool app client" - _Amazon Cognito_ (AWS console guide)](https://docs.aws.amazon.com/cognito/latest/developerguide/user-pool-settings-client-apps.html)
 
 ## Outputs from the CDK stack
 
