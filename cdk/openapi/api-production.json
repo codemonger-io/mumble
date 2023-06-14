@@ -1,0 +1,945 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "mumble-api-production",
+    "description": "Mumble endpoints API (production)",
+    "version": "0.0.1"
+  },
+  "paths": {
+    "/": {},
+    "/.well-known": {},
+    "/.well-known/webfinger": {
+      "get": {
+        "description": "Returns the information on a given user",
+        "parameters": [
+          {
+            "description": "Account to be WebFingered",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "acct%3Akemoto%40mumble.codemonger.io",
+            "name": "resource",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MumbleApimumbleapiproductionWebFinger82E75364"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "account is invalid"
+          },
+          "404": {
+            "description": "account is not found"
+          },
+          "500": {
+            "description": "internal server error"
+          }
+        }
+      }
+    },
+    "/users": {},
+    "/users/{username}": {
+      "parameters": [
+        {
+          "name": "username",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "description": "Returns the actor object of a given user",
+        "parameters": [
+          {
+            "description": "Username to be described",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "kemoto",
+            "name": "username",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation",
+            "content": {
+              "application/activity+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MumbleApimumbleapiproductionActor0E52EB0E"
+                }
+              },
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MumbleApimumbleapiproductionActor0E52EB0E"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "user is not found"
+          },
+          "429": {
+            "description": "there are too many requests"
+          },
+          "500": {
+            "description": "internal server error"
+          }
+        }
+      }
+    },
+    "/users/{username}/config": {
+      "get": {
+        "description": "Returns the Mumble-specific configuration for a given user",
+        "parameters": [
+          {
+            "description": "Username to obtain the configuration",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "kemoto",
+            "name": "username",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MumbleApimumbleapiproductionUserConfig0438B1CC"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "MumbleApiUserPoolAuthorizerA1863467": []
+          }
+        ]
+      }
+    },
+    "/users/{username}/inbox": {
+      "post": {
+        "description": "Posts an activity to the inbox of a given user",
+        "requestBody": {
+          "content": {
+            "application/activity+json": {
+              "schema": {
+                "$ref": "#/components/schemas/MumbleApimumbleapiproductionActivity5D0E18C7"
+              }
+            },
+            "application/ld+json": {
+              "schema": {
+                "$ref": "#/components/schemas/MumbleApimumbleapiproductionActivity5D0E18C7"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "description": "Username to receive a posted activity",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "kemoto",
+            "name": "username",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation"
+          },
+          "400": {
+            "description": "request is malformed"
+          },
+          "401": {
+            "description": "request has no valid signature"
+          },
+          "403": {
+            "description": "requestor is not allowed to post"
+          },
+          "404": {
+            "description": "user is not found"
+          },
+          "500": {
+            "description": "internal server error"
+          }
+        }
+      }
+    },
+    "/users/{username}/outbox": {
+      "get": {
+        "description": "Returns activities of a given user",
+        "parameters": [
+          {
+            "description": "Username whose activities are to be obtained",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "kemoto",
+            "name": "username",
+            "in": "path"
+          },
+          {
+            "description": "Whether to obtain a page of activities",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "example": "true",
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "description": "Obtains activities after this ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "name": "after",
+            "in": "query"
+          },
+          {
+            "description": "Obtains activities before this ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "name": "before",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation",
+            "content": {
+              "application/activity+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MumbleApimumbleapiproductionPaginated922C93A4"
+                }
+              },
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MumbleApimumbleapiproductionPaginated922C93A4"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "request is malformed"
+          },
+          "404": {
+            "description": "user is not found"
+          },
+          "429": {
+            "description": "there are too many requests"
+          },
+          "500": {
+            "description": "internal server error"
+          }
+        }
+      },
+      "post": {
+        "description": "Posts an activity or object to the staging outbox of a given user",
+        "requestBody": {
+          "content": {
+            "application/activity+json": {
+              "schema": {
+                "$ref": "#/components/schemas/MumbleApimumbleapiproductionObject1880B275"
+              }
+            },
+            "application/ld+json": {
+              "schema": {
+                "$ref": "#/components/schemas/MumbleApimumbleapiproductionObject1880B275"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "description": "Username who posts an activity",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "kemoto",
+            "name": "username",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation"
+          },
+          "400": {
+            "description": "request is malformed"
+          },
+          "403": {
+            "description": "user is not allowed to post"
+          },
+          "404": {
+            "description": "user is not found"
+          },
+          "429": {
+            "description": "there are too many requests"
+          }
+        },
+        "security": [
+          {
+            "MumbleApiUserPoolAuthorizerA1863467": []
+          }
+        ]
+      }
+    },
+    "/users/{username}/followers": {
+      "get": {
+        "description": "Returns the followers of a given user",
+        "parameters": [
+          {
+            "description": "Username whose followers are to be obtained",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "kemoto",
+            "name": "username",
+            "in": "path"
+          },
+          {
+            "description": "Whether to obtain a page of followers",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": "false"
+            },
+            "example": "true",
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "description": "Obtains followers after this ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "https%3A%2F%2Fmumble.codemonger.io%2Fusers%2Fkemoto",
+            "name": "after",
+            "in": "query"
+          },
+          {
+            "description": "Obtains followers before this ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "https%3A%2F%2Fmumble.codemonger.io%2Fusers%2Fkemoto",
+            "name": "before",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation",
+            "content": {
+              "application/activity+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MumbleApimumbleapiproductionPaginated922C93A4"
+                }
+              },
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MumbleApimumbleapiproductionPaginated922C93A4"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "request is malformed"
+          },
+          "404": {
+            "description": "user is not found"
+          }
+        }
+      }
+    },
+    "/users/{username}/following": {
+      "get": {
+        "description": "Returns accounts followed by a given user.",
+        "parameters": [
+          {
+            "description": "Username whose following accounts are to be obtained",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "kemoto",
+            "name": "username",
+            "in": "path"
+          },
+          {
+            "description": "Whether to obtain a page of following accounts",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "example": true,
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "description": "Obtains following accounts after this ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "https%3A%2F%2Fmumble.codemonger.io%2Fusers%2Fkemoto",
+            "name": "after",
+            "in": "query"
+          },
+          {
+            "description": "Obtains following accounts before this ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "https%3A%2F%2Fmumble.codemonger.io%2Fusers%2Fkemoto",
+            "name": "before",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation",
+            "content": {
+              "application/activity+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MumbleApimumbleapiproductionPaginated922C93A4"
+                }
+              },
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MumbleApimumbleapiproductionPaginated922C93A4"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "request is malformed"
+          },
+          "404": {
+            "description": "user is not found"
+          },
+          "429": {
+            "description": "there are too many requests"
+          }
+        }
+      }
+    },
+    "/users/{username}/posts": {},
+    "/users/{username}/posts/{uniquePart}": {
+      "parameters": [
+        {
+          "name": "uniquePart",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "description": "Returns an object representing a post",
+        "parameters": [
+          {
+            "description": "Username whose post is to be obtained",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "kemoto",
+            "name": "username",
+            "in": "path"
+          },
+          {
+            "description": "Unique part of the ID of the post object to be obtained",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "01234567-89ab-cdef-0123-456789abcdef",
+            "name": "uniquePart",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation",
+            "content": {
+              "application/activity+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MumbleApimumbleapiproductionObject1880B275"
+                }
+              },
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MumbleApimumbleapiproductionObject1880B275"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "request is malformed"
+          },
+          "404": {
+            "description": "user or post is not found"
+          },
+          "429": {
+            "description": "there are too many requests"
+          },
+          "500": {
+            "description": "internal server error"
+          }
+        }
+      }
+    },
+    "/users/{username}/posts/{uniquePart}/replies": {
+      "get": {
+        "description": "Returns a collection of replies to a specific post",
+        "parameters": [
+          {
+            "description": "Username who owns the post that got replied",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "kemoto",
+            "name": "username",
+            "in": "path"
+          },
+          {
+            "description": "Unique part of the ID of the post that got replied",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "01234567-89ab-cdef-0123-456789abcdef",
+            "name": "uniquePart",
+            "in": "path"
+          },
+          {
+            "description": "Whether to obtain a collection page of replies",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "example": true,
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "description": "Obtains replies after this ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "2023-05-19T04%3A06%3A41Z%3Ahttps%3A%2F%2Fmumble.codemonger.io%2Fusers%2Fkemoto%2Fposts%2F01234567-89ab-cdef-0123-456789abcdef",
+            "name": "after",
+            "in": "query"
+          },
+          {
+            "description": "Obtains replies before this ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "2023-05-19T04%3A06%3A41Z%3Ahttps%3A%2F%2Fmumble.codemonger.io%2Fusers%2Fkemoto%2Fposts%2F01234567-89ab-cdef-0123-456789abcdef",
+            "name": "before",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation",
+            "content": {
+              "application/activity+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MumbleApimumbleapiproductionPaginated922C93A4"
+                }
+              },
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MumbleApimumbleapiproductionPaginated922C93A4"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "request is malformed"
+          },
+          "404": {
+            "description": "user or post does not exist"
+          },
+          "429": {
+            "description": "there are too many requests"
+          },
+          "500": {
+            "description": "internal server error"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "MumbleApimumbleapiproductionWebFinger82E75364": {
+        "description": "WebFinter response",
+        "properties": {
+          "subject": {
+            "description": "Subject URI",
+            "example": "acct:kemoto@mumble.codemonger.io",
+            "type": "string"
+          },
+          "links": {
+            "description": "Links associated with the subject",
+            "items": {
+              "description": "Link item",
+              "properties": {
+                "rel": {
+                  "description": "Relation type of the linked object",
+                  "example": "self",
+                  "type": "string"
+                },
+                "type": {
+                  "description": "Media type of the linked object",
+                  "example": "application/activity+json",
+                  "type": "string"
+                },
+                "href": {
+                  "description": "URI of the linked object",
+                  "example": "https://mumble.codemonger.io/users/kemoto",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "rel"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "subject"
+        ],
+        "title": "WebFinger",
+        "type": "object"
+      },
+      "MumbleApimumbleapiproductionActor0E52EB0E": {
+        "description": "Actor response",
+        "properties": {
+          "@context": {
+            "description": "JSON-LD context",
+            "example": "https://www.w3.org/ns/activitystreams",
+            "type": "string"
+          },
+          "id": {
+            "description": "ID of the object",
+            "example": "https://mumble.codemonger.io/users/kemoto",
+            "type": "string"
+          },
+          "type": {
+            "description": "Object type. Always \"Person\"",
+            "enum": [
+              "Person"
+            ],
+            "example": "Person",
+            "type": "string"
+          },
+          "name": {
+            "description": "Preferred \"nickname\" or \"display name\" of the actor",
+            "example": "Kikuo Emoto",
+            "type": "string"
+          },
+          "preferredUsername": {
+            "description": "Short username which may be used to refer to the actor, with no uniqueness guarantees",
+            "example": "kemoto",
+            "type": "string"
+          },
+          "summary": {
+            "description": "Quick summary or bio by the user about themselves",
+            "example": "The representative of codemonger",
+            "type": "string"
+          },
+          "url": {
+            "description": "Link to the actor's \"profile web page\", if not equal to the value of id",
+            "example": "https://codemonger.io",
+            "type": "string"
+          },
+          "inbox": {
+            "description": "Inbox URI",
+            "example": "https://mumble.codemonger.io/users/kemoto/inbox",
+            "type": "string"
+          },
+          "outbox": {
+            "description": "Outbox URI",
+            "example": "https://mumble.codemonger.io/users/kemoto/outbox",
+            "type": "string"
+          },
+          "following": {
+            "description": "Following list URI",
+            "example": "https://mumble.codemonger.io/users/kemoto/following",
+            "type": "string"
+          },
+          "followers": {
+            "description": "Follower list URI",
+            "example": "https://mumble.codemonger.io/users/kemoto/followers",
+            "type": "string"
+          },
+          "publicKey": {
+            "description": "Public key",
+            "properties": {
+              "id": {
+                "description": "ID of the public key",
+                "example": "https://mumble.codemonger.io/users/kemoto#main-key",
+                "type": "string"
+              },
+              "owner": {
+                "description": "Owner of the public key",
+                "example": "https://mumble.codemonger.io/users/kemoto",
+                "type": "string"
+              },
+              "publicKeyPem": {
+                "description": "PEM representation of the public key",
+                "example": "-----BEGIN PUBLIC KEY-----\n...",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "owner",
+              "publicKeyPem"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "@context",
+          "followers",
+          "following",
+          "id",
+          "inbox",
+          "outbox",
+          "publicKey",
+          "type"
+        ],
+        "title": "Actor",
+        "type": "object"
+      },
+      "MumbleApimumbleapiproductionUserConfig0438B1CC": {
+        "description": "Mumble-specif user configuration",
+        "properties": {
+          "objectsBucketName": {
+            "description": "Name of the S3 bucket to store objects",
+            "example": "mumble-objects-bucket",
+            "type": "string"
+          }
+        },
+        "required": [
+          "objectsBucketName"
+        ],
+        "title": "object",
+        "type": "object"
+      },
+      "MumbleApimumbleapiproductionObject1880B275": {
+        "description": "Object",
+        "properties": {
+          "id": {
+            "description": "ID of the object",
+            "example": "https://mumble.codemonger.io/users/kemoto/posts/abcdefghijklmn",
+            "type": "string"
+          },
+          "type": {
+            "description": "Type of the object",
+            "example": "Note",
+            "type": "string"
+          }
+        },
+        "title": "object",
+        "type": "object"
+      },
+      "MumbleApimumbleapiproductionActivity5D0E18C7": {
+        "description": "Activity",
+        "properties": {
+          "id": {
+            "description": "ID of the activity",
+            "example": "https://mumble.codemonger.io/users/kemoto/activities/abcdefghijklmn",
+            "type": "string"
+          },
+          "type": {
+            "description": "Type of the activity",
+            "example": "Create",
+            "type": "string"
+          },
+          "actor": {
+            "description": "Actor of the activity",
+            "example": "https://mumble.codemonger.io/users/kemoto",
+            "type": "string"
+          },
+          "object": {
+            "description": "Object of the activity",
+            "oneOf": [
+              {
+                "description": "ID of the object",
+                "example": "https://mumble.codemonger.io/users/kemoto/posts/abcdefghijklmn",
+                "type": "string"
+              },
+              {
+                "$ref": "#/components/schemas/MumbleApimumbleapiproductionObject1880B275"
+              }
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "actor"
+        ],
+        "title": "activity",
+        "type": "object"
+      },
+      "MumbleApimumbleapiproductionOrderedCollection462FE9BF": {
+        "description": "Ordered collection of items",
+        "properties": {
+          "@context": {
+            "description": "JSON-LD context",
+            "example": "https://www.w3.org/ns/activitystreams",
+            "type": "string"
+          },
+          "id": {
+            "description": "ID of the collection",
+            "example": "https://mumble.codmonger.io/users/kemoto/followers",
+            "type": "string"
+          },
+          "type": {
+            "description": "ActivityStreams object type",
+            "example": "OrderedCollection",
+            "type": "string"
+          },
+          "first": {
+            "description": "ID of the first page of the collection",
+            "example": "https://mumble.codemonger.io/users/kemoto/followers?page=true",
+            "type": "string"
+          },
+          "totalItems": {
+            "description": "Total number of items in the collection",
+            "example": 123,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "@context",
+          "id",
+          "type",
+          "first"
+        ],
+        "title": "orderedCollection",
+        "type": "object"
+      },
+      "MumbleApimumbleapiproductionOrderedCollectionPage83700BBF": {
+        "description": "Page in an ordered collection of items",
+        "properties": {
+          "@context": {
+            "description": "JSON-LD context",
+            "example": "https://www.w3.org/ns/activitystreams",
+            "type": "string"
+          },
+          "id": {
+            "description": "ID of the collection page",
+            "example": "https://mumble.codemonger.io/users/kemoto/followers?page=true",
+            "type": "string"
+          },
+          "type": {
+            "description": "ActivityStreams type of the collection page",
+            "example": "OrderedCollectionPage",
+            "type": "string"
+          },
+          "partOf": {
+            "description": "ID of the collection containing the page",
+            "example": "https://mumble.codemonger.io/users/kemoto/followers",
+            "type": "string"
+          },
+          "orderedItems": {
+            "description": "Items in the collection page",
+            "type": "array"
+          },
+          "totalItems": {
+            "description": "Total number of items in the collection",
+            "example": 123,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "prev": {
+            "description": "ID of the previous collection page",
+            "example": "https://mumble.codemonger.io/users/kemoto/followers?page=true&before=https%3A%2F%2Fmastodon.social%2Fusers%2FGargron",
+            "type": "string"
+          },
+          "next": {
+            "description": "ID of the next collection page",
+            "example": "https://mumble.codemonger.io/users/kemoto/followers?page=true&after=https%3A%2F%2Fmastodon.social%2Fusers%2FGargron",
+            "type": "string"
+          }
+        },
+        "required": [
+          "@context",
+          "id",
+          "type",
+          "partOf",
+          "orderedItems"
+        ],
+        "title": "orderedCollectionPage",
+        "type": "object"
+      },
+      "MumbleApimumbleapiproductionPaginated922C93A4": {
+        "description": "Paginated response that may be an OrderedCollection or OrderedCollectionPage",
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/MumbleApimumbleapiproductionOrderedCollection462FE9BF"
+          },
+          {
+            "$ref": "#/components/schemas/MumbleApimumbleapiproductionOrderedCollectionPage83700BBF"
+          }
+        ],
+        "title": "paginated"
+      }
+    },
+    "securitySchemes": {
+      "MumbleApiUserPoolAuthorizerA1863467": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Authorization"
+      }
+    }
+  }
+}
