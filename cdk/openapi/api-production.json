@@ -40,8 +40,8 @@
           "404": {
             "description": "account is not found"
           },
-          "500": {
-            "description": "internal server error"
+          "429": {
+            "description": "there are too many requests"
           }
         }
       }
@@ -93,9 +93,6 @@
           },
           "429": {
             "description": "there are too many requests"
-          },
-          "500": {
-            "description": "internal server error"
           }
         }
       }
@@ -179,8 +176,8 @@
           "404": {
             "description": "user is not found"
           },
-          "500": {
-            "description": "internal server error"
+          "429": {
+            "description": "there are too many requests"
           }
         }
       }
