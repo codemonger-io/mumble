@@ -142,7 +142,7 @@ def get_first_outbox_page(user: User) -> Dict[str, Any]:
     meta_activities, activities = get_outbox_page(user)
     current_id = f'{user.outbox_uri}?page=true'
     if len(activities) == 0:
-        make_activity_collection_page(user, current_id, [])
+        return make_activity_collection_page(user, current_id, [])
     next_key = urlencode(
         serialize_activity_key(meta_activities[-1].primary_key),
     )
