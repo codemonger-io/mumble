@@ -6,6 +6,8 @@ Provisions AWS resources for the Mumble service.
 
 This document supposes that you have [`AWS_PROFILE`](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html#cli-configure-files-using-profiles) environment variable configured with an AWS profile with sufficient privileges.
 
+My example:
+
 ```sh
 export AWS_PROFILE=codemonger-jp
 ```
@@ -155,6 +157,37 @@ You can configure the callback URLs with the configuration file (`configs/cognit
 Here are some references for you:
 - ["Configuring a user pool app client" - _Amazon Cognito_ (hosted UI guide)](https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools-app-idp-settings.html)
 - ["Configuring a user pool app client" - _Amazon Cognito_ (AWS console guide)](https://docs.aws.amazon.com/cognito/latest/developerguide/user-pool-settings-client-apps.html)
+
+### Creating a new Mumble user
+
+To create a new Mumble user, you have to take the following steps:
+- create a new Cognito user
+- generate an RSA key pair for the new user
+- save the private key in Parameter Store on AWS Systems Manager
+- create an item in the user table for the new user
+
+You can use the npm script [`create-user`](./scripts/create-user.ts) to do the above jobs to create a new user.
+
+```sh
+npm run create-user -- \
+    username \
+    email \
+    --name "Full Name" \
+    --summary "About the user" \
+    --url "https://example.com"
+```
+
+You have to add `--stage production` option for production:
+
+```sh
+npm run create-user -- \
+    username \
+    email \
+    --name "Full Name" \
+    --summary "About the user" \
+    --url "https://example.com" \
+    --stage production
+```
 
 ## Outputs from the CDK stack
 
