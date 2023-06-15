@@ -109,12 +109,14 @@ export class MumbleApi extends Construct {
       layers: [libActivityPub, libCommons, libMumble],
       environment: {
         USER_TABLE_NAME: userTable.userTable.tableName,
-        // TODO: specify DOMAIN_NAME in production
+        DOMAIN_NAME_PARAMETER_PATH:
+          systemParameters.domainNameParameter.parameterName,
       },
       memorySize: 128,
       timeout: Duration.seconds(10),
     });
     userTable.userTable.grantReadData(describeUserLambda);
+    systemParameters.domainNameParameter.grantRead(describeUserLambda);
     // - receives an activity posted to the inbox of a given user
     const receiveInboundActivityLambda = new PythonFunction(
       this,
