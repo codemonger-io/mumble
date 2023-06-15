@@ -5,7 +5,7 @@
 
 from functools import cached_property
 import logging
-from typing import Any, Dict, TypedDict
+from typing import Any, Dict, Optional, TypedDict
 import requests
 from .activity_streams import (
     DEFAULT_REQUEST_TIMEOUT,
@@ -123,7 +123,9 @@ class Actor(DictObject):
 
         :raises requests.HTTPError: if an HTTP request fails.
 
-        :raises ValueError: if the resolved object is not a valid actor.
+        :raises requests.Timeout: if an HTTP request times out.
+
+        :raises TypeError: if the resolved object is not a valid actor.
         """
         LOGGER.debug('requesting actor: %s', actor_uri)
         underlying = activity_streams_get(actor_uri)
@@ -180,3 +182,24 @@ class Actor(DictObject):
         if 'publicKey' not in self._underlying:
             raise AttributeError('no public key is provided')
         return dict_as_public_key(self._underlying['publicKey'])
+
+    @property
+    def shared_inbox(self) -> Optional[Inbox]:
+        """Shared inbox of the actor.
+
+        :returns: ``None`` if the actor has no shared inbox.
+
+        :raises TypeError: if the ``endpoints`` property is invalid,
+        or if the shared inbox is invalid.
+        """
+        if 'endpoints' not in self._underlying:
+            return None
+        endpoints = self._underlying['endpoints']
+        if 'sharedInbox' not in endpoints:
+            return None
+        shared_inbox = endpoints['sharedInbox']
+        if not isinstance(shared_inbox, str):
+            raise TypeError(
+                f'sharedInbox endpoint must be str but {type(shared_inbox)}',
+            )
+        return Inbox(shared_inbox)
