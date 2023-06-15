@@ -135,6 +135,12 @@ class ActivityTranslator(ActivityVisitor):
         owner.
 
         :raises TooManyAccessError: if there are too many requests.
+
+        :raises TransientError: if a request to the remote server fails with
+        a transient error.
+
+        :raises requests.HTTPError: if a request to the remote server fails
+        with a non-transient error.
         """
         LOGGER.debug('translating Follow: %s', follow.to_dict())
         USER_TABLE.add_user_follower(self.user.username, follow)
@@ -241,7 +247,7 @@ def lambda_handler(event, _context):
     a transient error; e.g., timeout, 429 status code.
 
     :raises requests.HTTPError: if an http request to other server fails with
-    non-transient error.
+    a non-transient error.
 
     :raises KeyError: if ``event`` is malformed.
 
