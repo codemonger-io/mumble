@@ -68,7 +68,9 @@ export class UserTable extends Construct {
       //     - updatedAt: "<yyyy-mm-ddTHH:MM:ss.SSSSSSZ>"
       //     - followerId: "<follower-id>"
       //     - followActivityId: "<follow-activity-id>"
-      //     - sharedInboxId: "<shared-inbox-id>"
+      //     - inboxUri: "<index-uri>"
+      //     - sharedInboxUri: "<shared-inbox-uri>"
+      //         - omitted if the follower has no shared inbox
       //
       // 3. account followed by the user associated with <username>
       //     - pk: "followee:<username>"
