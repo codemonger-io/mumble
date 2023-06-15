@@ -2,13 +2,11 @@
 
 """Receives an activity posted to the inbox of a given user.
 
-You have to specify the following environment variable:
+You have to specify the following environment variables:
 * ``USER_TABLE_NAME``: name of the DynamoDB table that stores user information.
 * ``OBJECTS_BUCKET_NAME``: name of the S3 bucket that stores received objects.
-
-You have to specify the following environment variable in production:
-* ``DOMAIN_NAME``: domain name of the Mumble endpoints. ``apiDomainName`` in an
-  input event is used if omitted.
+* ``DOMAIN_NAME_PARAMETER_PATH``: path to the parameter that stores the domain
+  name in Parameter Store on AWS Systems Manager.
 """
 
 import json
@@ -23,11 +21,11 @@ from libactivitypub.signature import (
     verify_signature_and_headers,
 )
 from libmumble.exceptions import (
-    BadConfigurationError,
     BadRequestError,
     NotFoundError,
     UnauthorizedError,
 )
+from libmumble.parameters import get_domain_name
 from libmumble.user_table import UserTable
 from libmumble.utils import to_urlsafe_base64
 import requests
@@ -39,12 +37,11 @@ LOGGER.setLevel(logging.DEBUG)
 logging.getLogger('libactivitypub').setLevel(logging.DEBUG)
 logging.getLogger('libmumble').setLevel(logging.DEBUG)
 
-DOMAIN_NAME = os.environ.get('DOMAIN_NAME')
+DOMAIN_NAME = get_domain_name(boto3.client('ssm'))
 
 # user table
 USER_TABLE_NAME = os.environ['USER_TABLE_NAME']
-dynamodb = boto3.resource('dynamodb')
-USER_TABLE = UserTable(dynamodb.Table(USER_TABLE_NAME))
+USER_TABLE = UserTable(boto3.resource('dynamodb').Table(USER_TABLE_NAME))
 
 # bucket for objects
 OBJECTS_BUCKET_NAME = os.environ['OBJECTS_BUCKET_NAME']
@@ -89,7 +86,6 @@ def lambda_handler(event, _context):
 
         {
             'username': '<username>',
-            'apiDomainName': '<domain-name>',
             'signature': '<signature>',
             'date': '<date>',
             'digest': '<digest>',
@@ -112,20 +108,12 @@ def lambda_handler(event, _context):
 
     :raises BadRequestError: if the activity is unsupported.
 
-    :raises BadConfigurationError: if the domain name of the Mumble endpoints
-    is not configured.
-
     :raises NotFoundError: if no user is associated with ``username``.
 
     :raises TooManyAccessError: if there are too many requests.
     """
     username = event['username']
     LOGGER.debug('processing activity sent to: %s', username)
-    domain_name = DOMAIN_NAME or event.get('apiDomainName')
-    if not domain_name:
-        raise BadConfigurationError(
-            'Mumble endpoints domain name is not configured',
-        )
 
     LOGGER.debug('parsing signature')
     try:
@@ -160,7 +148,7 @@ def lambda_handler(event, _context):
             header_values={
                 '(request-target)': f'post /users/{username}/inbox',
                 'body': body,
-                'host': domain_name,
+                'host': DOMAIN_NAME,
                 'date': event['date'],
                 'digest': event['digest'],
                 'content-type': event['contentType'],
@@ -181,7 +169,7 @@ def lambda_handler(event, _context):
         )
 
     LOGGER.debug('looking up user: %s', username)
-    user = USER_TABLE.find_user_by_username(username, domain_name)
+    user = USER_TABLE.find_user_by_username(username, DOMAIN_NAME)
     if user is None:
         raise NotFoundError(f'no such user: {username}')
 

@@ -132,7 +132,8 @@ export class MumbleApi extends Construct {
         environment: {
           USER_TABLE_NAME: userTable.userTable.tableName,
           OBJECTS_BUCKET_NAME: objectStore.objectsBucket.bucketName,
-          // TODO: specify DOMAIN_NAME in production
+          DOMAIN_NAME_PARAMETER_PATH:
+            systemParameters.domainNameParameter.parameterName,
         },
         memorySize: 256,
         timeout: Duration.seconds(20),
@@ -140,6 +141,9 @@ export class MumbleApi extends Construct {
     );
     userTable.userTable.grantReadData(receiveInboundActivityLambda);
     objectStore.grantPutIntoInbox(receiveInboundActivityLambda);
+    systemParameters.domainNameParameter.grantRead(
+      receiveInboundActivityLambda,
+    );
     // - receives an activity or object posted to the outbox of a given user
     const receiveOutboundObjectLambda = new PythonFunction(
       this,
