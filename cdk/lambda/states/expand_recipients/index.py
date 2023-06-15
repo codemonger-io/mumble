@@ -163,7 +163,14 @@ class RecipientCollector(ActivityVisitor):
             raise
         if obj.type == 'Person':
             actor = obj.cast(Actor)
-            self.recipients.add(actor.inbox.uri)
+            if actor.shared_inbox is not None:
+                LOGGER.debug(
+                    'recipient has a shared inbox: %s',
+                    actor.shared_inbox.uri,
+                )
+                self.recipients.add(actor.shared_inbox.uri)
+            else:
+                self.recipients.add(actor.inbox.uri)
         elif obj.type in COLLECTION_TYPES:
             LOGGER.debug('resolving recipient collection: %s', recipient)
             # TODO: resolve the collection
