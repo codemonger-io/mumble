@@ -9,8 +9,8 @@
     "watch": "tsc -w",
     "test": "jest",
     "cdk": "cdk",
-    "generate-user-key-pair": "ts-node scripts/generate-user-key-pair.ts",
-    "setup-domain-name": "ts-node scripts/setup-domain-name.ts"
+    "setup-domain-name": "ts-node scripts/setup-domain-name.ts",
+    "create-user": "ts-node scripts/create-user.ts"
   },
   "devDependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.352.0",
