@@ -88,10 +88,16 @@ export class MumbleApi extends Construct {
       index: 'index.py',
       handler: 'lambda_handler',
       layers: [libActivityPub, libCommons, libMumble],
+      environment: {
+        USER_TABLE_NAME: userTable.userTable.tableName,
+        DOMAIN_NAME_PARAMETER_PATH:
+          systemParameters.domainNameParameter.parameterName,
+      },
       memorySize: 128,
       timeout: Duration.seconds(5),
-      // TODO: specify DOMAIN_NAME in production
     });
+    userTable.userTable.grantReadData(webFingerLambda);
+    systemParameters.domainNameParameter.grantRead(webFingerLambda);
     // - describes a given user (actor)
     const describeUserLambda = new PythonFunction(this, 'DescribeUserLambda', {
       description: 'Describes a given user',

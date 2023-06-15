@@ -2,28 +2,32 @@
 
 """Responds to a WebFinger request.
 
-You can specify the following optional environment variable,
-* ``DOMAIN_NAME``: domain name of the Mumble server. accounts that are not in
-  this domain will be rejected. the API domain name in an input event is used
-  if omitted.
-  MUST BE SPECIFIED in production.
+You have to specify the following environment variables:
+* ``USER_TABLE_NAME``: name of the DynamoDB table that manages user information.
+* ``DOMAIN_NAME_PARAMETER_PATH``: path to the parameter that stores the domain
+  name in Parameter Store on AWS Systems Manager.
 """
 
 import logging
 import os
+import boto3
 from libactivitypub.utils import parse_acct_uri
 from libmumble.exceptions import (
-    BadConfigurationError,
     BadRequestError,
     NotFoundError,
     UnexpectedDomainError,
 )
+from libmumble.parameters import get_domain_name
+from libmumble.user_table import UserTable
 
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.DEBUG)
 
-DOMAIN_NAME = os.environ.get('DOMAIN_NAME')
+DOMAIN_NAME = get_domain_name(boto3.client('ssm'))
+
+USER_TABLE_NAME = os.environ['USER_TABLE_NAME']
+USER_TABLE = UserTable(boto3.resource('dynamodb').Table(USER_TABLE_NAME))
 
 
 def lambda_handler(event, _context):
@@ -35,12 +39,7 @@ def lambda_handler(event, _context):
 
         {
             'resource': '<account>',
-            'apiDomainName': '<domain-name>'
         }
-
-    ``apiDomainName`` is the full domain name used to invoke the API.
-    This parameter can be used to verify the requested account resides in the
-    domain, if ``DOMAIN_NAME`` environment variable is not defined.
 
     Returns a ``dict`` similar to the following:
 
@@ -62,38 +61,33 @@ def lambda_handler(event, _context):
 
     :raises BadRequestError: if ``resource`` is invalid.
 
-    :raises InvalidDomainError: if the domain name in ``resource`` does not
-    match the domain name that this function supposes.
+    :raises UnexpectedDomainError: if the domain name of the requested entity
+    dot not match the domain name of the Mumble API.
 
     :raises NotFoundError: if the account is not found.
 
-    :raises BadConfigurationError: if the domain name of the Mumble endpoints
-    API is not configured.
+    :raises TooManyAccessError: if there are too many requests.
     """
     LOGGER.debug('handling a WebFinger request: %s', event)
-    host_domain_name = DOMAIN_NAME or event.get('apiDomainName')
-    LOGGER.debug('Mumble endpoints API domain name: %s', host_domain_name)
-    if not host_domain_name:
-        raise BadConfigurationError(
-            'Mumble endpoints API domain name must be configured',
-        )
     try:
-        name, domain_name = parse_acct_uri(event['resource'])
+        username, domain_name = parse_acct_uri(event['resource'])
     except ValueError as exc:
         raise BadRequestError(f'{exc}') from exc
-    if domain_name != host_domain_name:
+    if domain_name != DOMAIN_NAME:
         raise UnexpectedDomainError(f'unexpected domain name: {domain_name}')
-    # TODO: do not hard-code
-    if name != 'kemoto':
-        raise NotFoundError(f'no such user: {name}')
-    # TODO: do not hard-code
+
+    LOGGER.debug('looking up user: %s', username)
+    user = USER_TABLE.find_user_by_username(username, DOMAIN_NAME)
+    if user is None:
+        raise NotFoundError(f'no such user: {username}')
+
     return {
-        'subject': f'{name}@{domain_name}',
+        'subject': f'{username}@{domain_name}',
         'links': [
             {
                 'rel': 'self',
                 'type': 'application/activity+json',
-                'href': f'https://{host_domain_name}/users/{name}',
+                'href': user.id,
             },
         ],
     }
