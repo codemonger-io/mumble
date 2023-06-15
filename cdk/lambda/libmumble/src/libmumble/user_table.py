@@ -11,13 +11,15 @@ from typing import Any, Dict, Generator, Optional, Tuple
 from urllib.parse import unquote, urlparse
 from boto3.dynamodb.conditions import Attr, Key
 from libactivitypub.activity import Follow
-from libactivitypub.actor import PublicKey
+from libactivitypub.actor import Actor, PublicKey
+import requests
 from .dynamodb import TableWrapper
 from .exceptions import (
     BadConfigurationError,
     CorruptedDataError,
     NotFoundError,
     TooManyAccessError,
+    TransientError,
 )
 from .id_scheme import (
     generate_user_activity_id,
@@ -399,22 +401,41 @@ class UserTable(TableWrapper):
         :raises ValueError: if the object of ``follow`` is not the specified
         user.
 
+        :raises TypeError: if the actor of ``follow`` is not valid.
+
         :raises TooManyAccessError: if access to the DynamoDB table exceeds
         the limit.
+
+        :raises TransientError: if a request to a remote server fails with
+        a transient error.
+
+        :raises requests.HTTPError: if a request to a remote server fails with
+        a non-transient error.
         """
         if get_username_from_user_id(follow.followed_id) != username:
             raise ValueError(
                 f'follow request in wrong inbox: {follow.followed_id},'
                 f' inbox={username}',
             )
+        try:
+            actor = Actor.resolve_uri(follow.actor_id)
+        except requests.HTTPError as exc:
+            if exc.response.status_code == 429:
+                raise TransientError(f'{exc}') from exc
+            raise
+        except requests.Timeout as exc:
+            raise TransientError(f'{exc}') from exc
         item = UserTable.make_follower_key(username, follow.actor_id)
+        timestamp = current_yyyymmdd_hhmmss_ssssss()
         item.update({
-            'createdAt': current_yyyymmdd_hhmmss_ssssss(),
-            'updatedAt': current_yyyymmdd_hhmmss_ssssss(),
+            'createdAt': timestamp,
+            'updatedAt': timestamp,
             'followerId': follow.actor_id,
             'followActivityId': follow.id,
-            # TODO: sharedInboxId?
+            'inboxUri': actor.inbox.uri,
         })
+        if actor.shared_inbox is not None:
+            item['sharedInboxUri'] = actor.shared_inbox.uri
         try:
             LOGGER.debug(
                 'putting follower: username=%s, follower=%s',
@@ -427,7 +448,6 @@ class UserTable(TableWrapper):
             )
         except self.ConditionalCheckFailedException:
             LOGGER.debug('existing follower')
-            # follower count should stay
         except self.ProvisionedThroughputExceededException as exc:
             raise TooManyAccessError(
                 'exceeded provisioned table throughput',
