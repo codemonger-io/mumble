@@ -732,17 +732,6 @@ export class MumbleApi extends Construct {
         `"$util.escapeJavaScript($input.body).replaceAll("\\'","'")"`,
       ],
       bodyObject: ['body', "$input.json('$')"],
-      apiDomainName: ifThenElse(
-        '$input.params("x-host-header") != ""',
-        [[
-          'apiDomainName',
-          `"$util.escapeJavaScript($input.params('x-host-header')).replaceAll("\\'", "'")"`,
-        ]],
-        [[
-          'apiDomainName',
-          '"$context.domainName"',
-        ]],
-      ),
       page: ifThen(
         '$input.params("page") != ""',
         [[
@@ -777,21 +766,15 @@ export class MumbleApi extends Construct {
         proxy: false,
         passthroughBehavior: apigateway.PassthroughBehavior.NEVER,
         requestTemplates: {
-          // X-Host-Header is given if the request comes from the CloudFront
-          // distribution (only in development), and it must be used to verify
-          // the requested domain (`apiDomainName`).
-          // Otherwise, `apiDomainName` equals that of API Gateway.
-          // DO NOT rely on `apiDomainName` in production
           // TODO: add rel
           'application/json': composeMappingTemplate([
             mappingTemplates.resource,
-            mappingTemplates.apiDomainName,
           ]),
         },
         integrationResponses: [
           catchErrorsWith(404, 'UnexpectedDomainError', 'NotFoundError'),
           catchErrorsWith(400, 'BadRequestError'),
-          catchErrorsWith(500, 'BadConfigurationError'),
+          catchErrorsWith(429, 'TooManyAccessError'),
           {
             statusCode: '200',
           },
@@ -829,8 +812,8 @@ export class MumbleApi extends Construct {
             description: 'account is not found',
           },
           {
-            statusCode: '500',
-            description: 'internal server error',
+            statusCode: '429',
+            description: 'there are too many requests',
           },
         ],
       },
@@ -846,19 +829,13 @@ export class MumbleApi extends Construct {
         proxy: false,
         passthroughBehavior: apigateway.PassthroughBehavior.NEVER,
         requestTemplates: {
-          // `apiDomainName`: X-Host-Header is given if the request comes from
-          // the CloudFront distribution (only in development). Otherwise, use
-          // Host.
-          // DO NOT rely on `apiDomainName` in production
           'application/json': composeMappingTemplate([
             mappingTemplates.username,
-            mappingTemplates.apiDomainName,
           ]),
         },
         integrationResponses: [
           catchErrorsWith(404, 'NotFoundError'),
           catchErrorsWith(429, 'TooManyAccessError'),
-          catchErrorsWith(500, 'BadConfigurationError'),
           {
             statusCode: '200',
           },
@@ -894,10 +871,6 @@ export class MumbleApi extends Construct {
           {
             statusCode: '429',
             description: 'there are too many requests',
-          },
-          {
-            statusCode: '500',
-            description: 'internal server error',
           },
         ],
       },
@@ -961,10 +934,6 @@ export class MumbleApi extends Construct {
         proxy: false,
         passthroughBehavior: apigateway.PassthroughBehavior.NEVER,
         requestTemplates: {
-          // `apiDomainName`: X-Host-Header is given if the request comes from
-          // the CloudFront distribution (only in development). Otherwise, use
-          // Host.
-          // DO NOT rely on `apiDomainName` in production
           'application/activity+json': composeMappingTemplate([
             mappingTemplates.username,
             mappingTemplates.signature,
@@ -972,7 +941,6 @@ export class MumbleApi extends Construct {
             mappingTemplates.digest,
             mappingTemplates.contentType,
             mappingTemplates.body,
-            mappingTemplates.apiDomainName,
           ]),
           'application/ld+json': composeMappingTemplate([
             mappingTemplates.username,
@@ -981,7 +949,6 @@ export class MumbleApi extends Construct {
             mappingTemplates.digest,
             mappingTemplates.contentType,
             mappingTemplates.body,
-            mappingTemplates.apiDomainName,
           ]),
         },
         integrationResponses: [
@@ -989,7 +956,7 @@ export class MumbleApi extends Construct {
           catchErrorsWith(401, 'UnauthorizedError'),
           catchErrorsWith(403, 'ForbiddenError'),
           catchErrorsWith(404, 'NotFoundError'),
-          catchErrorsWith(500, 'BadConfigurationError'),
+          catchErrorsWith(429, 'TooManyAccessError'),
           {
             statusCode: '200',
           },
@@ -1035,8 +1002,8 @@ export class MumbleApi extends Construct {
             description: 'user is not found',
           },
           {
-            statusCode: '500',
-            description: 'internal server error',
+            statusCode: '429',
+            description: 'there are too many requests',
           },
         ],
       },
@@ -1558,14 +1525,10 @@ export class MumbleApi extends Construct {
     // - cache policy
     const forwardedHeaders = [
       'Authorization',
-      'X-Signature-Date', // Date should not be cached. this header exists only if the request has a Signature
+      'X-Signature-Date', // caches this instead of Date. this header exists only if the request has a Signature
       'Digest',
       'Signature',
     ]; // these headers are also cached
-    if (deploymentStage === 'development') {
-      // X-Host-Header must be forwarded in development
-      forwardedHeaders.push('X-Host-Header');
-    }
     const cachePolicy = new cloudfront.CachePolicy(
       this,
       'MumbleApiCachePolicy',
@@ -1598,13 +1561,6 @@ export class MumbleApi extends Construct {
         handler: 'forwardDateHeader',
       },
     ];
-    if (deploymentStage === 'development') {
-      // forwards Host header to the origin as X-Host-Header
-      requestHandlerFunctions.push({
-        filePath: path.join('cloudfront-fn', 'forward-host-header.js'),
-        handler: 'forwardHostHeader',
-      });
-    }
     // - domain name and cerificate (for production)
     let domainNameAndCertificate;
     if (deploymentStage === 'production') {
