@@ -1,12 +1,24 @@
 # Mumble CDK Stack
 
-Provisions AWS resources for the Mumble service.
+Defines an [AWS Cloud Development Kit (CDK)](https://aws.amazon.com/cdk/) stack that provisions AWS resources for the Mumble service.
+
+This document desribes how to deploy and configure the CDK stack.
+
+## Prerequisites
+
+You need [Node.js](https://nodejs.org/) version 16 or later installed.
+
+## Resolving dependencies
+
+```sh
+npm ci
+```
 
 ## Setting AWS_PROFILE
 
 This document supposes that you have [`AWS_PROFILE`](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html#cli-configure-files-using-profiles) environment variable configured with an AWS profile with sufficient privileges.
 
-My example:
+Here is my example:
 
 ```sh
 export AWS_PROFILE=codemonger-jp
@@ -14,8 +26,8 @@ export AWS_PROFILE=codemonger-jp
 
 ## Setting the toolkit stack name
 
-This document supposes the toolkit stack name is `mumble-toolkit-stack` and specified to `TOOLKIT_STACK_NAME` variable.
-You do not have to follow this convention, but I like this because I can avoid mixing up other projects in one place.
+This document supposes the toolkit stack name is `mumble-toolkit-stack` and stored in `TOOLKIT_STACK_NAME` variable.
+You do not have to follow this convention and can use the default, but I like this because I can avoid mixing up other projects in one place.
 This especially useful when you want to clean up a project.
 
 ```sh
@@ -24,7 +36,7 @@ TOOLKIT_STACK_NAME=mumble-toolkit-stack
 
 ## Setting the toolkit qualifier
 
-This document supposes the toolkit qualifier is `mumble2023` and specified to `BOOTSTRAP_QUALIFIER` variable.
+This document supposes the toolkit qualifier is `mumble2023` and stored in `BOOTSTRAP_QUALIFIER` variable.
 You should avoid using the default qualifier unless you are using the default toolkit stack name.
 
 ```sh
@@ -41,7 +53,7 @@ These files are never committed to this repository because they contain informat
 
 ### `configs/cognito-config.ts`
 
-You can find an example at [`configs/cognito-config.ts`](./configs/cognito-config.example.ts).
+You can find an example at [`configs/cognito-config.example.ts`](./configs/cognito-config.example.ts).
 If your callback URLs are not determined yet, you can use a copy of the example and [edit them later on AWS console](#configuring-cognito-user-pool-client-callback-urls).
 
 ```sh
