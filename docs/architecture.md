@@ -13,7 +13,7 @@ The following subsections briefly describe each component.
 ### ① Mumble AWS CloudFormation stack
 
 All the resources of the Mumble service are described with [AWS Cloud Development Kit (CDK)](https://aws.amazon.com/cdk/) and deployed as a [AWS CloudFormation](https://aws.amazon.com/cloudformation/) stack.
-Please refer to the [`cdk` folder](../cdk/) for more details.
+Please refer to the [`/cdk` folder](../cdk/) for more details.
 
 ### ② Amazon CloudFront
 

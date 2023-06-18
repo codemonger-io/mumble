@@ -3,6 +3,7 @@
 Defines an [AWS Cloud Development Kit (CDK)](https://aws.amazon.com/cdk/) stack that provisions AWS resources for the Mumble service.
 
 This document desribes how to deploy and configure the CDK stack.
+[`/docs/architecture.md`](../docs/architecture.md) provides an overview of the Mumble service architecture.
 
 ## Prerequisites
 
