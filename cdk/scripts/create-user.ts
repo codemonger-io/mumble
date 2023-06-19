@@ -196,6 +196,11 @@ async function createCognitoUser(
         Name: 'email',
         Value: email,
       },
+      // https://stackoverflow.com/a/75268978
+      {
+        Name: 'email_verified',
+        Value: 'true',
+      },
     ],
     DesiredDeliveryMediums: ['EMAIL'],
   }));
