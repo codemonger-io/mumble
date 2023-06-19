@@ -7,7 +7,9 @@ This document desribes how to deploy and configure the CDK stack.
 
 ## Prerequisites
 
-You need [Node.js](https://nodejs.org/) version 16 or later installed.
+You need the following software installed:
+- [Node.js](https://nodejs.org/) version 16 or later
+- [AWS CLI](https://aws.amazon.com/cli/) version 2 or later
 
 ## Resolving dependencies
 
@@ -28,8 +30,8 @@ export AWS_PROFILE=codemonger-jp
 ## Setting the toolkit stack name
 
 This document supposes the toolkit stack name is `mumble-toolkit-stack` and stored in `TOOLKIT_STACK_NAME` variable.
-You do not have to follow this convention and can use the default, but I like this because I can avoid mixing up other projects in one place.
-This especially useful when you want to clean up a project.
+You do not have to follow this convention and may use the default, but I like this because I can avoid mixing up other projects in one place.
+This is especially useful when you want to clean up a project.
 
 ```sh
 TOOLKIT_STACK_NAME=mumble-toolkit-stack
@@ -37,7 +39,7 @@ TOOLKIT_STACK_NAME=mumble-toolkit-stack
 
 ## Setting the toolkit qualifier
 
-This document supposes the toolkit qualifier is `mumble2023` and stored in `BOOTSTRAP_QUALIFIER` variable.
+This document supposes the [toolkit qualifier](https://docs.aws.amazon.com/cdk/v2/guide/bootstrapping.html#bootstrapping-custom-synth) is `mumble2023` and stored in `BOOTSTRAP_QUALIFIER` variable.
 You should avoid using the default qualifier unless you are using the default toolkit stack name.
 
 ```sh
@@ -166,7 +168,7 @@ Please refer to [Section "Outputs from the CDK stack"](#outputs-from-the-cdk-sta
 
 ### Configuring Cognito user pool client callback URLs
 
-You can configure the callback URLs with the configuration file (`configs/cognito-config.ts`), though, you can also do it on AWS console after deploying the CDK stack.
+You can configure the callback URLs with the configuration file ([`configs/cognito-config.ts`](#configscognito-configts)), though, you can also do it on AWS console after deploying the CDK stack.
 Here are some references for you:
 - ["Configuring a user pool app client" - _Amazon Cognito_ (hosted UI guide)](https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools-app-idp-settings.html)
 - ["Configuring a user pool app client" - _Amazon Cognito_ (AWS console guide)](https://docs.aws.amazon.com/cognito/latest/developerguide/user-pool-settings-client-apps.html)
