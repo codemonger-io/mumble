@@ -23,7 +23,7 @@ Since Mumble is implemented with [serverless technologies on AWS](https://aws.am
 It will greatly reduce your initial cost, and you can scale up as you gain more traction.
 FYI: According to [this article](https://cloudonaut.io/mastodon-on-aws/#:~:text=Costs%20for%20running%20Mastodon%20on%20AWS&text=The%20architecture%27s%20monthly%20charges%20are%20about%20%2460%20per%20month.), hosting a minimal [Mastodon](https://joinmastodon.org) setup on [AWS](https://aws.amazon.com) would cost about $60.
 
-### Mumble is not
+### Mumble is NOT
 
 - A hosted service
     - You have to deploy and host Mumble yourself on your own [AWS](https://aws.amazon.com) account.
