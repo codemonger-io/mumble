@@ -24,7 +24,7 @@ A custom domain name may be associated with this distribution, and its certifica
 ### ③ Amazon API Gateway
 
 The REST API on [Amazon API Gateway](https://aws.amazon.com/api-gateway/) provides the endpoints of the Mumble API.
-The endpoints include those required for [Activity Pub](https://www.w3.org/TR/activitypub/) and [WebFinger](https://webfinger.net)\*.
+The endpoints include those required for [ActivityPub](https://www.w3.org/TR/activitypub/) and [WebFinger](https://webfinger.net)\*.
 Thanks to [Redoc](https://github.com/Redocly/redoc), the OpenAPI documentation is available at [https://redocly.github.io/redoc/?url=https://raw.githubusercontent.com/codemonger-io/mumble/main/cdk/openapi/api-production.json](https://redocly.github.io/redoc/?url=https://raw.githubusercontent.com/codemonger-io/mumble/main/cdk/openapi/api-production.json).
 
 Most of the endpoints are implemented with [API integration functions (AWS Lambda)](#-aws-lambda-api-integration).
@@ -35,7 +35,7 @@ Some endpoints need user authentication, and a [client](#-mumble-api-client) has
 
 ### ④ Amazon S3
 
-The [Amazon S3](https://aws.amazon.com/s3/) bucket stores [Activity Pub](https://www.w3.org/TR/activitypub/) objects and media files.
+The [Amazon S3](https://aws.amazon.com/s3/) bucket stores [ActivityPub](https://www.w3.org/TR/activitypub/) objects and media files.
 
 Changes in the bucket trigger [workflows (AWS Step Functions)](#-aws-step-functions) via [Amazon EventBridge](#-amazon-eventbridge).
 
@@ -47,12 +47,12 @@ Changes in the bucket trigger [workflows (AWS Step Functions)](#-aws-step-functi
 
 This group of [AWS Lambda](https://aws.amazon.com/lambda/) functions implements the API integrations of the [REST API on Amazon API Gateway](#-amazon-api-gateway).
 
-The Lambda function that receives an [Activity Pub](https://www.w3.org/TR/activitypub/) object posted to the "inbox" endpoint of the Mumble API is in this group.
+The Lambda function that receives an [ActivityPub](https://www.w3.org/TR/activitypub/) object posted to the "inbox" endpoint of the Mumble API is in this group.
 The function validates the object and saves it in the [Amazon S3 bucket](#-amazon-s3).
 
 ### ⑦ AWS Step Functions
 
-State machines on [AWS Step Functions](https://aws.amazon.com/step-functions/) implement the workflows to handle inbound and outbound [Activity Pub](https://www.w3.org/TR/activitypub/) objects.
+State machines on [AWS Step Functions](https://aws.amazon.com/step-functions/) implement the workflows to handle inbound and outbound [ActivityPub](https://www.w3.org/TR/activitypub/) objects.
 
 States of the state machines are implemented with [state functions (AWS Lambda)](#-aws-lambda-state).
 
@@ -64,7 +64,7 @@ This group of [AWS Lambda](https://aws.amazon.com/lambda/) functions implements 
 
 There are two [Amazon DynamoDB](https://aws.amazon.com/dynamodb/) tables.
 1. "user table" manages user information
-2. "object table" manages metadata of [Activity Pub](https://www.w3.org/TR/activitypub/) activities and objects
+2. "object table" manages metadata of [ActivityPub](https://www.w3.org/TR/activitypub/) activities and objects
 
 [DynamoDB Streams](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Streams.html) of the tables trigger [statistics functions (AWS Lambda)](#-aws-lambda-statistics) when items are created, update, or deleted in the tables.
 
@@ -94,7 +94,7 @@ A Mumble API client provides a user interface to interact with the Mumble API.
 
 A Mumble user interacts with the Mumble API via a [Mumble API client](#-mumble-api-client).
 
-### ⑯ Mastodon (Activity Pub server)
+### ⑯ Mastodon (ActivityPub server)
 
 The Mumble API is specifically designed to talk to [Mastodon](https://joinmastodon.org) servers.
 [Mastodon](https://joinmastodon.org) adopts [HTTP Signature](https://docs.joinmastodon.org/spec/security/#http) to validate any incoming activities, and the Mumble API supports it.

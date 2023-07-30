@@ -2,13 +2,13 @@
 
 ![Mumble Brand](./mumble-brand.png)
 
-Mumble is a **serverless** implementation of [Activity Pub](https://www.w3.org/TR/activitypub/) on [AWS](https://aws.amazon.com).
+Mumble is a **serverless** implementation of [ActivityPub](https://www.w3.org/TR/activitypub/) on [AWS](https://aws.amazon.com).
 
-[Activity Pub](https://www.w3.org/TR/activitypub/) is a decentralized social networking protocol which is used by [Mastodon](https://joinmastodon.org).
+[ActivityPub](https://www.w3.org/TR/activitypub/) is a decentralized social networking protocol which is used by [Mastodon](https://joinmastodon.org).
 
 ## Features
 
-Mumble is not fully compliant with [Activity Pub](https://www.w3.org/TR/activitypub/) yet, but you can do the following things:
+Mumble is not fully compliant with [ActivityPub](https://www.w3.org/TR/activitypub/) yet, but you can do the following things:
 - Create an account reachable from [Mastodon](https://joinmastodon.org)
 - Publish a post with optional attachments
     - Only public posts so far
@@ -28,7 +28,7 @@ FYI: According to [this article](https://cloudonaut.io/mastodon-on-aws/#:~:text=
 - A hosted service
     - You have to deploy and host Mumble yourself on your own [AWS](https://aws.amazon.com) account.
       You have full control over your data in return.
-- An [Activity Pub](https://www.w3.org/TR/activitypub/) client
+- An [ActivityPub](https://www.w3.org/TR/activitypub/) client
     - [MumbleBee](https://github.com/codemonger-io/mumble-bee) is the official client for Mumble.
 
 ## Getting started
@@ -63,8 +63,8 @@ For that purpose, I used to use [Microsoft Teams](https://www.microsoft.com/en-u
 These mumblings turned out useful for my colleagues and me.
 Now, as a freelance, I started to want to have my own place to publicly write down these mumblings.
 [Twitter](https://twitter.com) could have been a good place, but I felt somehow it was not the right place for me.
-During the recent turmoil around [Twitter](https://twitter.com), [Mastodon](https://joinmastodon.org), a decentralized social network, caught my attention, and I was attracted to [Activity Pub](https://www.w3.org/TR/activitypub/) behind [Mastodon](https://joinmastodon.org).
-Since hosting [Mastodon](https://joinmastodon.org) required a traditional setup of servers that was not the way I was eager to pursue, I decided to implement a serverless version of [Activity Pub](https://www.w3.org/TR/activitypub/) on [AWS](https://aws.amazon.com).
+During the recent turmoil around [Twitter](https://twitter.com), [Mastodon](https://joinmastodon.org), a decentralized social network, caught my attention, and I was attracted to [ActivityPub](https://www.w3.org/TR/activitypub/) behind [Mastodon](https://joinmastodon.org).
+Since hosting [Mastodon](https://joinmastodon.org) required a traditional setup of servers that was not the way I was eager to pursue, I decided to implement a serverless version of [ActivityPub](https://www.w3.org/TR/activitypub/) on [AWS](https://aws.amazon.com).
 
 ## Development
 
