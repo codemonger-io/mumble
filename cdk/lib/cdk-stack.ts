@@ -63,7 +63,9 @@ export class CdkStack extends Stack {
       systemParameters,
       userTable,
     });
-    const viewer = new Viewer(this, 'Viewer');
+    const viewer = new Viewer(this, 'Viewer', {
+      systemParameters,
+    });
     const mumbleApi = new MumbleApi(this, 'MumbleApi', {
       deploymentStage,
       lambdaDependencies,
