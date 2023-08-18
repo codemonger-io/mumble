@@ -28,6 +28,7 @@ import type { ObjectStore } from './object-store';
 import type { SystemParameters } from './system-parameters';
 import type { UserPool } from './user-pool';
 import type { UserTable } from './user-table';
+import { VIEWER_BASEPATH, type Viewer } from './viewer';
 
 /** Domain name configuration. */
 interface DomainNameConfig {
@@ -50,6 +51,8 @@ export interface Props {
   readonly userTable: UserTable;
   /** Object store. */
   readonly objectStore: ObjectStore;
+  /** Viewer app. */
+  readonly viewer: Viewer;
 }
 
 /**
@@ -75,6 +78,7 @@ export class MumbleApi extends Construct {
       systemParameters,
       userPool,
       userTable,
+      viewer,
     } = props;
     const { libActivityPub, libCommons, libMumble } = lambdaDependencies;
 
@@ -1553,6 +1557,16 @@ export class MumbleApi extends Construct {
         defaultTtl: Duration.minutes(15),
       },
     );
+    // - cache policy for the viewer app
+    const viewerCachePolicy = new cloudfront.CachePolicy(
+      this,
+      'MumbleApiViewerCachePolicy',
+      {
+        comment: `Mumble API cache policy for the viewer app (${deploymentStage})`,
+        queryStringBehavior: cloudfront.CacheQueryStringBehavior.all(),
+        defaultTtl: Duration.seconds(10),
+      },
+    );
     // - CloudFront functions (provided only in development)
     const requestHandlerFunctions: FunctionProps[] = [
       // forwards Date header to the origin as X-Signature-Date
@@ -1608,6 +1622,12 @@ export class MumbleApi extends Construct {
             cachePolicy: mediaCachePolicy,
             viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.HTTPS_ONLY,
             responseHeadersPolicy: cloudfront.ResponseHeadersPolicy.CORS_ALLOW_ALL_ORIGINS,
+          },
+          [`${VIEWER_BASEPATH}*`]: {
+            origin: new origins.HttpOrigin(viewer.functionDomainName),
+            cachePolicy: viewerCachePolicy,
+            viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.HTTPS_ONLY,
+            // no CORS for the viewer app
           },
         },
         enableLogging: true,

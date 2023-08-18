@@ -18,6 +18,7 @@ import { Statistics } from './statistics';
 import { SystemParameters } from './system-parameters';
 import { UserPool } from './user-pool';
 import { UserTable } from './user-table';
+import { Viewer } from './viewer';
 
 export interface Props extends StackProps {
   /** Deployment stage. */
@@ -62,6 +63,7 @@ export class CdkStack extends Stack {
       systemParameters,
       userTable,
     });
+    const viewer = new Viewer(this, 'Viewer');
     const mumbleApi = new MumbleApi(this, 'MumbleApi', {
       deploymentStage,
       lambdaDependencies,
@@ -69,6 +71,7 @@ export class CdkStack extends Stack {
       systemParameters,
       userPool,
       userTable,
+      viewer,
     });
     const statistics = new Statistics(this, 'Statistics', {
       deadLetterQueue,
