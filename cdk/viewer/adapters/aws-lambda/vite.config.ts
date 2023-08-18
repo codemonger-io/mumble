@@ -18,6 +18,7 @@ export default extendConfig(baseConfig, () => {
       noExternal: /./,
     },
     build: {
+      target: 'esnext', // we need the top-level await
       minify: false,
       ssr: true,
       rollupOptions: {
