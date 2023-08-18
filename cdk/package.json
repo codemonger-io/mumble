@@ -31,6 +31,7 @@
     "@aws-sdk/client-cloudformation": "^3.312.0",
     "@aws-sdk/client-ssm": "^3.312.0",
     "@aws-sdk/lib-dynamodb": "^3.312.0",
+    "@codemonger-io/cdk-qwik-bundle": "github:codemonger-io/cdk-qwik-bundle#v0.1.0",
     "@types/uuid": "^9.0.1",
     "aws-cdk-lib": "^2.82.0",
     "cdk-cloudfront-function-bundle": "github:codemonger-io/cdk-cloudfront-function-bundle#v0.1.0",
