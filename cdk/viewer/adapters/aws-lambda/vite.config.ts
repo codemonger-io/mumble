@@ -4,7 +4,10 @@ import baseConfig from "../../vite.config";
 import { builtinModules } from "module";
 
 const awsSdkModules = [
+  '@aws-sdk/client-dynamodb',
+  '@aws-sdk/client-s3',
   '@aws-sdk/client-ssm',
+  '@aws-sdk/lib-dynamodb',
 ];
 
 export default extendConfig(baseConfig, () => {
