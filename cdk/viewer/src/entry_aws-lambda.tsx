@@ -26,7 +26,7 @@ declare global {
 async function getDomainNameParameter(): Promise<string | null> {
   const parameterName = process.env.DOMAIN_NAME_PARAMETER_PATH;
   console.log("obtaining domain name from Parameter Store", parameterName);
-  if (parameterName == null) {
+  if (parameterName == null || parameterName === "") {
     console.log("no domain name parameter configured");
     return null;
   }
