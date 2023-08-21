@@ -23,7 +23,9 @@
     "qwik": "qwik"
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "^3.395.0",
     "@aws-sdk/client-ssm": "^3.391.0",
+    "@aws-sdk/lib-dynamodb": "^3.395.0",
     "@builder.io/qwik": "^1.2.7",
     "@builder.io/qwik-city": "^1.2.7",
     "@types/eslint": "8.44.1",
@@ -32,6 +34,7 @@
     "@typescript-eslint/parser": "6.2.0",
     "eslint": "8.45.0",
     "eslint-plugin-qwik": "^1.2.7",
+    "isomorphic-dompurify": "^1.8.0",
     "prettier": "3.0.0",
     "serverless": "^3.32.2",
     "serverless-http": "^3.2.0",
