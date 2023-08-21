@@ -9,7 +9,10 @@ provider:
   timeout: 30
   stage: dev
   environment:
-    DOMAIN_NAME_PARAMETER_PATH: ${env:DOMAIN_NAME_PARAMETER_PATH}
+    DOMAIN_NAME_PARAMETER_PATH: ${env:DOMAIN_NAME_PARAMETER_PATH, ''}
+    OBJECT_TABLE_NAME: ${env:OBJECT_TABLE_NAME, ''}
+    OBJECTS_BUCKET_NAME: ${env:OBJECTS_BUCKET_NAME, ''}
+    USER_TABLE_NAME: ${env:USER_TABLE_NAME, ''}
 
 functions:
   qwik:
