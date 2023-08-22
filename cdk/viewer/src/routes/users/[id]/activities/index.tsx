@@ -15,6 +15,7 @@ import {
 import { loadActivity } from '~/utils/activities';
 import { getDynamoDbClient } from '~/utils/dynamodb';
 import { format_yyyy_mm } from '~/utils/datetime';
+import { isFailReturn } from '~/utils/fail-return';
 import { useUserInfo } from '../layout';
 
 // fetches the recent user activities from the database
@@ -23,6 +24,9 @@ export const useUserActivities = routeLoader$(async requestEvent => {
   const { id } = requestEvent.params;
   // uses the user info to know the last activity date
   const userInfo = await requestEvent.resolveValue(useUserInfo);
+  if (isFailReturn(userInfo)) {
+    return userInfo;
+  }
   const createdAt = new Date(userInfo.createdAt);
   const lastActivityAt = new Date(userInfo.lastActivityAt);
   // fetches up to 20 activities
@@ -94,6 +98,9 @@ async function* fetchMetaActivities(
 
 export default component$(() => {
   const activities = useUserActivities();
+  if (isFailReturn(activities.value)) {
+    return <p>{activities.value.errorMessage}</p>;
+  }
 
   return (
     <>
