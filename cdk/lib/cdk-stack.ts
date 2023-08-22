@@ -122,6 +122,10 @@ export class CdkStack extends Stack {
       description: 'Path prefix of user private keys in Parameter Store on AWS Systems Manager',
       value: userTable.privateKeyPathPrefix,
     });
+    new CfnOutput(this, 'ObjectTableName', {
+      description: 'Name of the DynamoDB table that stores objects',
+      value: objectStore.objectTable.tableName,
+    });
     new CfnOutput(this, 'DomainNameParameterPath', {
       description: 'Path to the domain name stored in Parameter Store on AWS Systems Manager',
       value: systemParameters.domainNameParameter.parameterName,
