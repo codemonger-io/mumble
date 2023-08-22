@@ -3,7 +3,9 @@ import { Duration, Fn, aws_lambda as lambda } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { QwikHandler } from '@codemonger-io/cdk-qwik-bundle';
 
+import type { ObjectStore } from './object-store';
 import type { SystemParameters } from './system-parameters';
+import type { UserTable } from './user-table';
 
 /** Basepath of the viewer. */
 export const VIEWER_BASEPATH = '/viewer/';
@@ -12,6 +14,10 @@ export const VIEWER_BASEPATH = '/viewer/';
 export interface Props {
   /** System parameters. */
   readonly systemParameters: SystemParameters;
+  /** User table. */
+  readonly userTable: UserTable;
+  /** Object store. */
+  readonly objectStore: ObjectStore;
 }
 
 /** CDK construct that provisions the viewer app. */
@@ -24,7 +30,7 @@ export class Viewer extends Construct {
   constructor(scope: Construct, id: string, props: Props) {
     super(scope, id);
 
-    const { systemParameters } = props;
+    const { objectStore, systemParameters, userTable } = props;
 
     this.handler = new QwikHandler(this, 'ViewerHandler', {
       entry: path.resolve('./viewer'),
@@ -33,6 +39,9 @@ export class Viewer extends Construct {
       environment: {
         DOMAIN_NAME_PARAMETER_PATH:
           systemParameters.domainNameParameter.parameterName,
+        OBJECT_TABLE_NAME: objectStore.objectTable.tableName,
+        OBJECTS_BUCKET_NAME: objectStore.objectsBucket.bucketName,
+        USER_TABLE_NAME: userTable.userTable.tableName,
       },
       memorySize: 256,
       timeout: Duration.seconds(30),
@@ -42,7 +51,10 @@ export class Viewer extends Construct {
         },
       },
     });
+    objectStore.objectsBucket.grantRead(this.handler);
+    objectStore.objectTable.grantReadData(this.handler);
     systemParameters.domainNameParameter.grantRead(this.handler);
+    userTable.userTable.grantReadData(this.handler);
 
     this.functionUrl = this.handler.addFunctionUrl({
       authType: lambda.FunctionUrlAuthType.NONE,
