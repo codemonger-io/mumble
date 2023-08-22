@@ -1,5 +1,79 @@
+import {
+  QueryCommand,
+  type QueryCommandInput,
+  type QueryCommandOutput,
+} from '@aws-sdk/lib-dynamodb';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+
 import type { Activity, ActivityMetadata } from '~/types/activity';
+import { format_yyyy_mm } from './datetime';
+import { getDynamoDbClient } from './dynamodb';
+import {
+  AsyncIteratorWrapper,
+  type FnAsyncIterator,
+} from './fn-async-iterator';
+
+/**
+ * Fetches activities of a given user in a specified period from the object
+ * store.
+ */
+export function fetchActivities(
+  username: string,
+  period: { before: Date, after: Date },
+): FnAsyncIterator<Activity> {
+  return AsyncIteratorWrapper
+    .from(fetchMetaActivities(username, period), { lookAhead: 10 })
+    .map(loadActivity);
+}
+
+/**
+ * Fetches meta activities of a given user in a specified period from the
+ * database.
+ */
+export async function* fetchMetaActivities(
+  username: string,
+  { before, after }: { before: Date, after: Date },
+): AsyncGenerator<ActivityMetadata> {
+  const client = getDynamoDbClient();
+  let year = before.getUTCFullYear();
+  let month = before.getUTCMonth() + 1; // 0-11 → 1-12
+  let currentYM = format_yyyy_mm(year, month);
+  const oldestYM = format_yyyy_mm(
+    after.getUTCFullYear(),
+    after.getUTCMonth() + 1,
+  );
+  while (currentYM >= oldestYM) {
+    const pk = `activity:${username}:${currentYM}`;
+    console.log('querying activities:', pk);
+    let exclusiveStartKey: QueryCommandInput['ExclusiveStartKey'] | undefined = undefined;
+    do {
+      const res: QueryCommandOutput = await client.send(new QueryCommand({
+        TableName: process.env.OBJECT_TABLE_NAME,
+        KeyConditionExpression: 'pk = :pk',
+        FilterExpression: 'isPublic = :true AND #type = :create',
+        ExpressionAttributeNames: { '#type': 'type' },
+        ExpressionAttributeValues: {
+          ':pk': pk,
+          ':true': true,
+          ':create': 'Create',
+        },
+        ExclusiveStartKey: exclusiveStartKey,
+        ScanIndexForward: false, // reverse chrono
+      }));
+      for (const item of res.Items ?? []) {
+        // TODO: verify ActivityMetadata
+        yield item as ActivityMetadata;
+      }
+      exclusiveStartKey = res.LastEvaluatedKey;
+    } while (exclusiveStartKey !== undefined);
+    month--;
+    if (month === 0) {
+      month = 12;
+      year--;
+    }
+    currentYM = format_yyyy_mm(year, month);
+  }
+}
 
 /** Loads an activity from the object store. */
 export async function loadActivity(meta: ActivityMetadata): Promise<Activity> {
