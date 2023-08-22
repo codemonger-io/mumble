@@ -1,6 +1,7 @@
 import { component$ } from '@builder.io/qwik';
 import { routeLoader$ } from '@builder.io/qwik-city';
 
+import Activity from '~/components/activity/activity';
 import { fetchActivities } from '~/utils/activities';
 import { isFailReturn } from '~/utils/fail-return';
 import { useUserInfo } from '../layout';
@@ -37,10 +38,7 @@ export default component$(() => {
     <>
       <h2>Recent activities</h2>
       {activities.value.map(activity => (
-        <div key={activity.id}>
-          <p dangerouslySetInnerHTML={activity.object?.content ?? ""}>
-          </p>
-        </div>
+        <Activity key={activity.id} activity={activity} />
       ))}
     </>
   );
