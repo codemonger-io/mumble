@@ -32,17 +32,10 @@ export function fetchActivities(
  */
 export async function* fetchMetaActivities(
   username: string,
-  { before, after }: { before: Date, after: Date },
+  period: { before: Date, after: Date },
 ): AsyncGenerator<ActivityMetadata> {
   const client = getDynamoDbClient();
-  let year = before.getUTCFullYear();
-  let month = before.getUTCMonth() + 1; // 0-11 → 1-12
-  let currentYM = format_yyyy_mm(year, month);
-  const oldestYM = format_yyyy_mm(
-    after.getUTCFullYear(),
-    after.getUTCMonth() + 1,
-  );
-  while (currentYM >= oldestYM) {
+  for (const currentYM of monthsIn(period)) {
     const pk = `activity:${username}:${currentYM}`;
     console.log('querying activities:', pk);
     let exclusiveStartKey: QueryCommandInput['ExclusiveStartKey'] | undefined = undefined;
@@ -66,12 +59,6 @@ export async function* fetchMetaActivities(
       }
       exclusiveStartKey = res.LastEvaluatedKey;
     } while (exclusiveStartKey !== undefined);
-    month--;
-    if (month === 0) {
-      month = 12;
-      year--;
-    }
-    currentYM = format_yyyy_mm(year, month);
   }
 }
 
@@ -98,5 +85,35 @@ export async function loadActivity(meta: ActivityMetadata): Promise<Activity> {
   } catch (err) {
     console.error('failed to load activity:', err);
     throw err;
+  }
+}
+
+/**
+ * Iterates over months in a given period.
+ *
+ * @remarks
+ *
+ * Months are enumerated reverse chronologically.
+ *
+ * Each item is represented in the "yyyy-mm" format.
+ */
+function* monthsIn(
+  { before, after }: { before: Date, after: Date },
+): Generator<string> {
+  let year = before.getUTCFullYear();
+  let month = before.getUTCMonth() + 1; // 0-11 → 1-12
+  let currentYM = format_yyyy_mm(year, month);
+  const oldestYM = format_yyyy_mm(
+    after.getUTCFullYear(),
+    after.getUTCMonth() + 1,
+  );
+  while (currentYM >= oldestYM) {
+    yield currentYM;
+    month--;
+    if (month === 0) {
+      month = 12;
+      year--;
+    }
+    currentYM = format_yyyy_mm(year, month);
   }
 }
