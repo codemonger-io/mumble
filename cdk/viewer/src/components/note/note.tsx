@@ -17,7 +17,25 @@ export default component$<NoteProps>(({ note }: NoteProps) => {
   });
 
   return (
-    <div class={styles.container} dangerouslySetInnerHTML={safeContent.value}>
-    </div>
+    <article class={styles.container}>
+      <div
+        class={styles.markdown}
+        dangerouslySetInnerHTML={safeContent.value}
+      ></div>
+      {note.attachment && (
+        <div class={styles.attachments}>
+          <p class={styles['attachments-summary']}>
+            {note.attachment.length}
+            {note.attachment.length > 1 ? 'attachments' : 'attachment'}
+          </p>
+          {note.attachment.filter(a => a.type === 'Image').map(attachment => (
+            <img
+              key={attachment.url}
+              src={attachment.url}
+            ></img>
+          ))}
+        </div>
+      )}
+    </article>
   );
 });
