@@ -11,4 +11,23 @@ export interface APObject {
 
   /** Optional content of the object. */
   content?: string;
+
+  /** Optional attachments. */
+  attachment?: Attachment[];
+}
+
+/**
+ * Attachment in ActivityPub.
+ *
+ * @remarks
+ *
+ * There is no `Attachment` type in ActivityPub, though, this interface shows
+ * expected fields.
+ */
+export interface Attachment {
+  /** Type of the object. */
+  type: string;
+
+  /** URL of the attachment. */
+  url: string;
 }
