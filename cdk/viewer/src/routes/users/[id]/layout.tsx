@@ -6,6 +6,7 @@ import Profile from '~/components/profile/profile';
 import type { UserInfo } from '~/types/user-info';
 import { getDynamoDbClient } from '~/utils/dynamodb';
 import { isFailReturn } from '~/utils/fail-return';
+import { getDomainNameParameter } from '~/utils/parameters';
 import styles from './layout.module.css';
 
 // fetches user information from the database
@@ -32,6 +33,17 @@ export const useUserInfo = routeLoader$(async requestEvent => {
 
 // obtains the domain name.
 export const useDomainName = routeLoader$(async () => {
+  const domainName = await getDomainNameParameter();
+  if (domainName != null) {
+    return domainName;
+  }
+  if (process.env.ORIGIN) {
+    try {
+      return new URL(process.env.ORIGIN).host;
+    } catch (err) {
+      console.warn('ORIGIN is not a valid URL:', process.env.ORIGIN);
+    }
+  }
   return 'localhost';
 });
 
