@@ -1,8 +1,11 @@
 :root {
   --max-app-width: 960px;
-  --mobile-breakpoint: 700px; /* unfortunately, not available in media queries */
+  --mobile-breakpoint: 700px; /* unfortunately, unavailable in media queries */
+  --border-radius: 3px;
 
   --theme-border-color: #eee;
+  --theme-success-color: #aff0ba;
+  --theme-error-color: #f0afbc;
 }
 
 /**

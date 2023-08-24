@@ -1,0 +1,75 @@
+.container {
+  display: block;
+  position: relative;
+  background-color: #eee;
+  border-radius: var(--border-radius);
+  padding: 0.5em;
+  padding-right: 24px;
+  margin-inline-start: 0;
+  margin-inline-end: 0;
+
+  & .clipped {
+    display: inline-block;
+    overflow-x: scroll;
+    text-overflow: ellipsis;
+    padding-right: 24px;
+    width: 100%;
+
+    & .text {
+      font-family: monospace;
+    }
+  }
+
+  & .copy-button {
+    position: absolute;
+    top: 0;
+    right: 0;
+    background-color: rgba(200, 200, 200, 0.5);
+    border: none;
+    font-size: 80%;
+
+    &:active {
+      background-color: rgba(200, 200, 200, 1.0);
+    }
+
+    @media (hover: hover) {
+      transition: opacity 0.2s ease-in-out;
+      opacity: 0;
+      &:hover {
+        background-color: rgba(200, 200, 200, 0.7);
+      }
+      &:active {
+        background-color: rgba(200, 200, 200, 1.0);
+      }
+    }
+  }
+
+  @media (hover: hover) {
+    &.hovered {
+      & .copy-button {
+        opacity: 1;
+      }
+    }
+  }
+
+  & .copy-notice {
+    display: block;
+    position: absolute;
+    font-size: 80%;
+    right: 0;
+    bottom: -1.6em;
+    padding: 0.5em;
+    border-radius: var(--border-radius);
+    opacity: 0;
+    transition: all 0.2s ease-in-out;
+
+    &.success {
+      background-color: var(--theme-success-color);
+      opacity: 1;
+    }
+    &.error {
+      background-color: var(--theme-error-color);
+      opacity: 1;
+    }
+  }
+}
