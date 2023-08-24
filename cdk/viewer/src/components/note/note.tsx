@@ -2,6 +2,7 @@ import { component$, useSignal, useVisibleTask$ } from '@builder.io/qwik';
 import DOMPurify from 'dompurify';
 
 import type { APObject } from '~/types/objects';
+import styles from './note.module.css';
 
 interface NoteProps {
   note: APObject;
@@ -16,6 +17,7 @@ export default component$<NoteProps>(({ note }: NoteProps) => {
   });
 
   return (
-    <p dangerouslySetInnerHTML={safeContent.value}></p>
+    <div class={styles.container} dangerouslySetInnerHTML={safeContent.value}>
+    </div>
   );
 });

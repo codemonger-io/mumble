@@ -1,4 +1,9 @@
+:root {
+  --max-app-width: 960px;
+  --mobile-breakpoint: 700px; /* unfortunately, not available in media queries */
 
+  --theme-border-color: #eee;
+}
 
 /**
  * WHAT IS THIS FILE?
@@ -31,5 +36,6 @@ html {
 
 body {
   padding: 0;
+  margin: 0;
   line-height: inherit;
 }

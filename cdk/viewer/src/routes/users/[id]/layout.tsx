@@ -5,6 +5,7 @@ import { routeLoader$ } from '@builder.io/qwik-city';
 import type { UserInfo } from '~/types/user-info';
 import { getDynamoDbClient } from '~/utils/dynamodb';
 import { isFailReturn } from '~/utils/fail-return';
+import styles from './layout.module.css';
 
 // fetches user information from the database
 export const useUserInfo = routeLoader$(async requestEvent => {
@@ -35,16 +36,18 @@ export default component$(() => {
   }
 
   return (
-    <>
-      <header>
-        <h1>Hello, {userInfo.value.name} (@{userInfo.value.preferredUsername})</h1>
-        <p>{userInfo.value.summary}</p>
-        <p>Followers: {userInfo.value.followerCount}</p>
-        <p>Following: {userInfo.value.followingCount}</p>
-      </header>
-      <main>
-        <Slot />
-      </main>
-    </>
+    <div class={styles.container}>
+      <nav class={styles.navigation}>
+        <header>
+          <h1>Hello, {userInfo.value.name} (@{userInfo.value.preferredUsername})</h1>
+          <p>{userInfo.value.summary}</p>
+          <p>Followers: {userInfo.value.followerCount}</p>
+          <p>Following: {userInfo.value.followingCount}</p>
+        </header>
+        <main>
+          <Slot />
+        </main>
+      </nav>
+    </div>
   );
 });

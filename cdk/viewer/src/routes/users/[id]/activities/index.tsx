@@ -5,6 +5,7 @@ import Activity from '~/components/activity/activity';
 import { fetchActivities } from '~/utils/activities';
 import { isFailReturn } from '~/utils/fail-return';
 import { useUserInfo } from '../layout';
+import styles from './index.module.css';
 
 // fetches the recent user activities from the database
 export const useUserActivities = routeLoader$(async requestEvent => {
@@ -35,11 +36,13 @@ export default component$(() => {
   }
 
   return (
-    <>
-      <h2>Recent activities</h2>
-      {activities.value.map(activity => (
-        <Activity key={activity.id} activity={activity} />
-      ))}
-    </>
+    <section class={styles.container}>
+      <h2 class={styles.title}>Recent mumbling</h2>
+      <div class={styles.content}>
+        {activities.value.map(activity => (
+          <Activity key={activity.id} activity={activity} />
+        ))}
+      </div>
+    </section>
   );
 });
