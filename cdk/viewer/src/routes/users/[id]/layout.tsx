@@ -2,6 +2,7 @@ import { GetCommand } from '@aws-sdk/lib-dynamodb';
 import { Slot, component$ } from '@builder.io/qwik';
 import { routeLoader$ } from '@builder.io/qwik-city';
 
+import Profile from '~/components/profile/profile';
 import type { UserInfo } from '~/types/user-info';
 import { getDynamoDbClient } from '~/utils/dynamodb';
 import { isFailReturn } from '~/utils/fail-return';
@@ -29,20 +30,24 @@ export const useUserInfo = routeLoader$(async requestEvent => {
   return res.Item as UserInfo;
 });
 
+// obtains the domain name.
+export const useDomainName = routeLoader$(async () => {
+  return 'localhost';
+});
+
 export default component$(() => {
   const userInfo = useUserInfo();
   if (isFailReturn(userInfo.value)) {
     return <p>{userInfo.value.errorMessage}</p>
   }
 
+  const domainName = useDomainName();
+
   return (
     <div class={styles.container}>
       <nav class={styles.navigation}>
         <header>
-          <h1>Hello, {userInfo.value.name} (@{userInfo.value.preferredUsername})</h1>
-          <p>{userInfo.value.summary}</p>
-          <p>Followers: {userInfo.value.followerCount}</p>
-          <p>Following: {userInfo.value.followingCount}</p>
+          <Profile user={userInfo.value} domainName={domainName.value} />
         </header>
         <main>
           <Slot />

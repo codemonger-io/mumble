@@ -6,6 +6,9 @@
 }
 
 .navigation {
+  --shadow-size: 100px;
+  --shadow-size-neg: calc(-1 * var(--shadow-size));
+
   display: flex;
   flex-direction: row;
   justify-content: flex-start;
@@ -15,13 +18,17 @@
   & header {
     padding: 1rem;
     border-right: 1px solid var(--theme-border-color);
-    box-shadow: 0 0 100px 1px rgba(0, 0, 0, 0.1);
-    clip-path: inset(0 0 0 -100px);
+    box-shadow: 0 0 var(--shadow-size) 1px rgba(0, 0, 0, 0.1);
+    clip-path: inset(0 0 0 var(--shadow-size-neg));
+    max-width: 20em;
+    flex-shrink: 1;
   }
 
   & main {
-    box-shadow: 0 0 100px 1px rgba(0, 0, 0, 0.1);
-    clip-path: inset(0 -100px 0 0);
+    box-shadow: 0 0 var(--shadow-size) 1px rgba(0, 0, 0, 0.1);
+    clip-path: inset(0 var(--shadow-size-neg) 0 0);
+    max-width: 40em;
+    flex-shrink: 0;
   }
 
   @media only screen and (max-width: 700px) {
@@ -29,6 +36,7 @@
 
     & header {
       border-bottom: 1px solid var(--theme-border-color);
+      max-width: 100%;
     }
 
     & header,
