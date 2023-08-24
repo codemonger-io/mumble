@@ -1,0 +1,19 @@
+.container {
+  & .name {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-block-end: 0;
+  }
+
+  & .preferred-name {
+    font-size: 1.0rem;
+    font-weight: 500;
+    color: #666;
+    margin-block-start: 0;
+  }
+
+  & .mastodon {
+    color: #6364ff;
+    vertical-align: middle;
+  }
+}
