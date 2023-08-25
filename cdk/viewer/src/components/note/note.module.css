@@ -136,9 +136,19 @@
       }
     }
 
-    & img {
-      max-width: 100%;
-      height: 200px;
+    & .image-container {
+      display: flex;
+      width: 200px;
+      height: 150px;
+      place-items: stretch;
+      place-content: stretch;
+
+      & img,
+      & svg {
+        display: block;
+        width: auto;
+        height: auto;
+      }
     }
   }
 }
