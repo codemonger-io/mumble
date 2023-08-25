@@ -14,6 +14,15 @@ export interface APObject {
 
   /** Optional attachments. */
   attachment?: Attachment[];
+
+  /**
+   * Optional published datetime.
+   *
+   * @remarks
+   *
+   * In the form of "YYYY-MM-DDThh:mm:ssZ"; e.g., "2023-08-25T17:40:00Z".
+   */
+  published?: string;
 }
 
 /**

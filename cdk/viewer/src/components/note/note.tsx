@@ -38,6 +38,11 @@ export default component$<NoteProps>(({ note }: NoteProps) => {
           ))}
         </div>
       )}
+      <div class={styles['date-section']}>
+        {note.published != null
+          ? new Date(note.published).toLocaleString()
+          : 'date unknown'}
+      </div>
     </article>
   );
 });
