@@ -22,6 +22,11 @@ export default component$(({ user, domainName }: ProfileProps) => {
       <article>
         <p>{user.summary}</p>
       </article>
+      {user.url && (
+        <article>
+          🔗 <a href={user.url} target="_blank">{user.url}</a>
+        </article>
+      )}
       <article>
         <p>Followers: {user.followerCount}</p>
         <p>Following: {user.followingCount}</p>
@@ -30,7 +35,7 @@ export default component$(({ user, domainName }: ProfileProps) => {
         <p>
           🔍 Search
           <CopyableText text={`@${user.preferredUsername}@${domainName}`} />
-          on your <SiMastodon class={styles.mastodon} /> Mastodon client to follow.
+          on your <a href="https://joinmastodon.org" target="_blank"><SiMastodon class={styles.mastodon} /> Mastodon</a> client to follow.
         </p>
       </article>
     </article>
