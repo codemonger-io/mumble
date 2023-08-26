@@ -1,13 +1,8 @@
+import type { ItemKey } from './dynamodb';
 import type { APObject } from './objects';
 
 /** Metadata of an activity. */
-export interface ActivityMetadata {
-  /** Partition key of the activity. */
-  pk: string;
-
-  /** Sort key of the activity. */
-  sk: string;
-
+export interface ActivityMetadata extends ItemKey {
   /** ID of the activity. */
   id: string;
 
