@@ -13,6 +13,7 @@
   flex-direction: row;
   justify-content: flex-start;
   align-items: stretch;
+  width: 100%;
   max-width: var(--max-app-width);
 
   & header {
@@ -27,7 +28,9 @@
   & main {
     box-shadow: 0 0 var(--shadow-size) 1px rgba(0, 0, 0, 0.1);
     clip-path: inset(0 var(--shadow-size-neg) 0 0);
+    width: 40em;
     max-width: 40em;
+    flex-grow: 1;
     flex-shrink: 0;
   }
 
@@ -36,11 +39,16 @@
 
     & header {
       border-bottom: 1px solid var(--theme-border-color);
-      max-width: 100%;
+      width: calc(100% - 2rem);
+    }
+
+    & main {
+      width: 100%;
     }
 
     & header,
     & main {
+      max-width: 100%;
       box-shadow: none;
       clip-path: none;
     }

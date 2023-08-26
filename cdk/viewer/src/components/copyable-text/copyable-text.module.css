@@ -11,9 +11,13 @@
   & .clipped {
     display: inline-block;
     overflow-x: scroll;
-    text-overflow: ellipsis;
     padding-right: 24px;
     width: 100%;
+    max-width: 12em;
+
+    @media only screen and (max-width: 700px) {
+      max-width: none;
+    }
 
     & .text {
       font-family: monospace;
@@ -21,25 +25,29 @@
   }
 
   & .copy-button {
+    --background-color: rgba(200, 200, 200, 0.5);
+    --background-color-hover: rgba(200, 200, 200, 0.7);
+    --background-color-active: rgba(200, 200, 200, 1.0);
     position: absolute;
     top: 0;
     right: 0;
-    background-color: rgba(200, 200, 200, 0.5);
+    background-color: var(--background-color);
     border: none;
-    font-size: 80%;
+    border-radius: var(--border-radius);
+    font-size: 120%;
 
     &:active {
-      background-color: rgba(200, 200, 200, 1.0);
+      background-color: var(--background-color-active);
     }
 
     @media (hover: hover) {
       transition: opacity 0.2s ease-in-out;
       opacity: 0;
       &:hover {
-        background-color: rgba(200, 200, 200, 0.7);
+        background-color: var(--background-color-hover);
       }
       &:active {
-        background-color: rgba(200, 200, 200, 1.0);
+        background-color: var(--background-color-active);
       }
     }
   }
