@@ -1,5 +1,13 @@
 import { GetCommand } from '@aws-sdk/lib-dynamodb';
-import { Slot, component$ } from '@builder.io/qwik';
+import {
+  $,
+  Slot,
+  component$,
+  useOnWindow,
+  useSignal,
+  useTask$,
+} from '@builder.io/qwik';
+import { isBrowser } from '@builder.io/qwik/build';
 import { routeLoader$ } from '@builder.io/qwik-city';
 
 import Profile from '~/components/profile/profile';
@@ -55,8 +63,54 @@ export default component$(() => {
 
   const domainName = useDomainName();
 
+  // hides the "Move to top" button after 2 seconds,
+  // but keeps it visible if the user is hovering over or pressing it.
+  const isMoveToTopShown = useSignal(false);
+  const isMoveToTopTransient = useSignal(false);
+  const isMoveToTopHeld = useSignal(false);
+  useTask$(({ track, cleanup }) => {
+    track(() => isMoveToTopShown.value);
+    if (isBrowser) {
+      if (isMoveToTopShown.value) {
+        // transient state ensures that `display` is not `none`
+        // before the transition runs
+        isMoveToTopTransient.value = true;
+        window.requestAnimationFrame(() => {
+          isMoveToTopTransient.value = false;
+        });
+        const timeoutId = setTimeout(() => {
+          // transient state ensures that `display` is not `none`
+          // while the transition is running
+          isMoveToTopTransient.value = true;
+          isMoveToTopShown.value = false;
+        }, 2000);
+        cleanup(() => {
+          clearTimeout(timeoutId);
+          isMoveToTopShown.value = false;
+        });
+      }
+    }
+  });
+
+  // shows the "Move to top" button when the user scrolls up.
+  const containerRef = useSignal<Element>();
+  const lastScrollY = useSignal(0);
+  useOnWindow('scroll', $(() => {
+    const containerRect = containerRef.value?.getBoundingClientRect();
+    if (containerRect == null) {
+      return;
+    }
+    const scrollDelta = window.scrollY - lastScrollY.value;
+    lastScrollY.value = window.scrollY;
+    if (scrollDelta < 0) {
+      if (window.scrollY > window.innerHeight) {
+        isMoveToTopShown.value = true;
+      }
+    }
+  }));
+
   return (
-    <div class={styles.container}>
+    <div ref={containerRef} class={styles.container}>
       <nav class={styles.navigation}>
         <header>
           <Profile user={userInfo.value} domainName={domainName.value} />
@@ -65,6 +119,19 @@ export default component$(() => {
           <Slot />
         </main>
       </nav>
+      <button
+        class={[
+          styles['move-to-top'],
+          (isMoveToTopShown.value || isMoveToTopHeld.value) && styles['move-to-top-active'],
+          isMoveToTopTransient.value && styles['move-to-top-transient'],
+        ]}
+        onClick$={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        onPointerEnter$={() => isMoveToTopHeld.value = true}
+        onPointerLeave$={() => isMoveToTopHeld.value = false}
+        onPointerDown$={() => isMoveToTopHeld.value = true}
+        onPointerUp$={() => isMoveToTopHeld.value = false}
+        onTransitionEnd$={() => isMoveToTopTransient.value = false}
+      >👆 Move to top</button>
     </div>
   );
 });

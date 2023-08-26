@@ -3,6 +3,46 @@
   flex-direction: column;
   justify-content: flex-start;
   align-items: center;
+
+  & .move-to-top {
+    display: none;
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    font-size: 1.0rem;
+    padding: 1.0em;
+    border: none;
+    background: #fff;
+    box-sizing: border-box;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+
+    @media (hover: hover) {
+      &:hover {
+        background: #eee;
+      }
+    }
+    &:active {
+      background: #ddd;
+    }
+
+    &.move-to-top-transient {
+      display: inline;
+      opacity: 0;
+    }
+
+    &.move-to-top-active {
+      display: inline;
+      opacity: 1.0;
+
+      &.move-to-top-transient {
+        display: inline;
+        opacity: 0;
+      }
+    }
+  }
 }
 
 .navigation {
