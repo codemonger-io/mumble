@@ -62,7 +62,7 @@ export default component$(() => {
   const containerRef = useSignal<Element>();
   const lastScrollY = useSignal(0);
 
-  useOnWindow('scroll', $(async event => {
+  useOnWindow('scroll', $(async () => {
     if (isFailReturn(userInfo.value) || isFailReturn(activities.value)) {
       return;
     }

@@ -1,8 +1,4 @@
-import {
-  QueryCommand,
-  type QueryCommandInput,
-  type QueryCommandOutput,
-} from '@aws-sdk/lib-dynamodb';
+import { QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 
 import type { Activity, ActivityMetadata } from '~/types/activity';
@@ -73,12 +69,13 @@ export async function* fetchMetaActivities(
       before: keyToDate(options.beforeKey),
       after: options.afterDate,
     };
-  } else if (options.beforeDate) {
+  } else if (options.beforeDate) { // eslint-disable-line @typescript-eslint/no-unnecessary-condition
     period = {
       before: options.beforeDate,
       after: options.afterDate,
     };
   } else {
+    // exhaustive check
     const invalid: never = options;
     throw new Error(`invalid options: ${invalid}`);
   }
@@ -87,7 +84,7 @@ export async function* fetchMetaActivities(
     const pk = `activity:${username}:${currentYM}`;
     console.log('querying activities:', pk);
     do {
-      const res: QueryCommandOutput = await client.send(new QueryCommand({
+      const res = await client.send(new QueryCommand({
         TableName: process.env.OBJECT_TABLE_NAME,
         KeyConditionExpression: 'pk = :pk',
         FilterExpression: 'isPublic = :true AND #type = :create',
