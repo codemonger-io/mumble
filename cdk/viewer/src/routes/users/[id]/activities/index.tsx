@@ -1,6 +1,7 @@
 import { $, component$, useOnWindow, useSignal } from '@builder.io/qwik';
 import { routeLoader$, server$ } from '@builder.io/qwik-city';
 
+import MumbleLogo from '~/assets/mumble-logo.svg?jsx';
 import Activity from '~/components/activity/activity';
 import ActivityLoading from '~/components/activity-loading/activity-loading';
 import type { ItemKey } from '~/types/dynamodb';
@@ -111,7 +112,9 @@ export default component$(() => {
 
   return (
     <section ref={containerRef} class={styles.container}>
-      <h2 class={styles.title}>Recent mumbling</h2>
+      <h2 class={styles.title}>
+        <MumbleLogo class={styles['mumble-logo']}/> Recent mumbling
+      </h2>
       <div class={styles.content}>
         {activities.value.map(activity => (
           <Activity key={activity.id} activity={activity} />

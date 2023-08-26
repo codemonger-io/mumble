@@ -5,4 +5,9 @@
 
   & .content {
   }
+
+  & .mumble-logo {
+    font-size: 110%;
+    vertical-align: bottom;
+  }
 }
