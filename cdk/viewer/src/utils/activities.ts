@@ -6,6 +6,7 @@ import {
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 
 import type { Activity, ActivityMetadata } from '~/types/activity';
+import type { ItemKey } from '~/types/dynamodb';
 import { format_yyyy_mm } from './datetime';
 import { getDynamoDbClient } from './dynamodb';
 import {
@@ -13,16 +14,46 @@ import {
   type FnAsyncIterator,
 } from './fn-async-iterator';
 
-/**
- * Fetches activities of a given user in a specified period from the object
- * store.
- */
+/** Activity with the database key. */
+export type ActivityEntry = Activity & {
+  /** Key in the database. */
+  readonly _key: ItemKey,
+}
+
+/** Options for {@link fetchActivities}. */
+export type FetchActivitiesOptions =
+  | FetchBeforeDateOptions
+  | FetchBeforeKeyOptions;
+
+/** {@link FetchActivitiesOptions} to fetch activities before a given date. */
+export interface FetchBeforeDateOptions {
+  /** Fetches activities before this date (exclusive). */
+  readonly beforeDate: Date;
+
+  /** Fetches activities after this date (exclusive). */
+  readonly afterDate: Date;
+
+  readonly beforeKey?: undefined;
+}
+
+/** {@link FetchActivitiesOptions} to fetch activities before a given key. */
+export interface FetchBeforeKeyOptions {
+  /** Fetches activities before this key (exclusive). */
+  readonly beforeKey: ItemKey;
+
+  /** Fetches activities after this date (exclusive). */
+  readonly afterDate: Date;
+
+  readonly beforeDate?: undefined;
+}
+
+/** Fetches activities of a given user from the object store. */
 export function fetchActivities(
   username: string,
-  period: { before: Date, after: Date },
-): FnAsyncIterator<Activity> {
+  options: FetchActivitiesOptions,
+): FnAsyncIterator<ActivityEntry> {
   return AsyncIteratorWrapper
-    .from(fetchMetaActivities(username, period), { lookAhead: 10 })
+    .from(fetchMetaActivities(username, options), { lookAhead: 10 })
     .map(loadActivity);
 }
 
@@ -32,13 +63,29 @@ export function fetchActivities(
  */
 export async function* fetchMetaActivities(
   username: string,
-  period: { before: Date, after: Date },
+  options: FetchActivitiesOptions,
 ): AsyncGenerator<ActivityMetadata> {
+  let period: { before: Date, after: Date };
+  let exclusiveStartKey: Record<string, any> | undefined = undefined;
+  if (options.beforeKey) {
+    exclusiveStartKey = options.beforeKey;
+    period = {
+      before: keyToDate(options.beforeKey),
+      after: options.afterDate,
+    };
+  } else if (options.beforeDate) {
+    period = {
+      before: options.beforeDate,
+      after: options.afterDate,
+    };
+  } else {
+    const invalid: never = options;
+    throw new Error(`invalid options: ${invalid}`);
+  }
   const client = getDynamoDbClient();
   for (const currentYM of monthsIn(period)) {
     const pk = `activity:${username}:${currentYM}`;
     console.log('querying activities:', pk);
-    let exclusiveStartKey: QueryCommandInput['ExclusiveStartKey'] | undefined = undefined;
     do {
       const res: QueryCommandOutput = await client.send(new QueryCommand({
         TableName: process.env.OBJECT_TABLE_NAME,
@@ -63,7 +110,9 @@ export async function* fetchMetaActivities(
 }
 
 /** Loads an activity from the object store. */
-export async function loadActivity(meta: ActivityMetadata): Promise<Activity> {
+export async function loadActivity(
+  meta: ActivityMetadata,
+): Promise<ActivityEntry> {
   console.log('loading activity:', meta.pk, meta.sk);
   const bucketName = process.env.OBJECTS_BUCKET_NAME;
   const skParts = meta.sk.split(':');
@@ -81,7 +130,14 @@ export async function loadActivity(meta: ActivityMetadata): Promise<Activity> {
     }
     const data = await res.Body.transformToString();
     // TODO: verify Activity
-    return JSON.parse(data);
+    const activity = JSON.parse(data);
+    return {
+      ...activity,
+      _key: {
+        pk: meta.pk,
+        sk: meta.sk,
+      },
+    };
   } catch (err) {
     console.error('failed to load activity:', err);
     throw err;
@@ -116,4 +172,14 @@ function* monthsIn(
     }
     currentYM = format_yyyy_mm(year, month);
   }
+}
+
+/** Converts a DynamoDB item key into a date. */
+function keyToDate(key: ItemKey): Date {
+  // pk: activity:<username>:<yyyy-mm>
+  // sk: <ddTHH:MM:ss.SSSSSS>:<unique-part>
+  const [, , yyyy_mm] = key.pk.split(':');
+  const [dd_t_hh, mm, ss_ssssss] = key.sk.split(':');
+  const dateStr = `${yyyy_mm}-${dd_t_hh}:${mm}:${ss_ssssss}Z`;
+  return new Date(dateStr);
 }
