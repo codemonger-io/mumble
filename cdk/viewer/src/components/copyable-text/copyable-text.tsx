@@ -1,5 +1,5 @@
 import { component$, useSignal, useTask$ } from '@builder.io/qwik';
-import { LuClipboardCopy } from '@qwikest/icons/lucide';
+import { LuCopy } from '@qwikest/icons/lucide';
 
 import styles from './copyable-text.module.css';
 
@@ -48,7 +48,7 @@ export default component$(({ text }: CopyableTextProps) => {
             copyResult.value = 'error';
           }
         }}
-      ><LuClipboardCopy /></button>
+      ><LuCopy /></button>
       <span
         class={[
           styles['copy-notice'],
