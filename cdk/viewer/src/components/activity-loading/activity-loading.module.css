@@ -1,6 +1,7 @@
 .container {
   max-width: 40em;
   padding: 1.5rem;
+  color: var(--theme-color-weak);
   border-bottom: 1px solid var(--theme-border-color);
 
   &:last-child {

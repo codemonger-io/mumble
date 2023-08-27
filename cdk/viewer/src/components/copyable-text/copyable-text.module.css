@@ -1,7 +1,7 @@
 .container {
   display: block;
   position: relative;
-  background-color: #eee;
+  background-color: var(--theme-background-shaded);
   border-radius: var(--border-radius);
   padding: 0.5em;
   padding-right: 24px;
@@ -25,9 +25,9 @@
   }
 
   & .copy-button {
-    --background-color: rgba(200, 200, 200, 0.5);
-    --background-color-hover: rgba(200, 200, 200, 0.7);
-    --background-color-active: rgba(200, 200, 200, 1.0);
+    --background-color: var(--theme-background-tint);
+    --background-color-hover: var(--theme-background-tint-light);
+    --background-color-active: var(--theme-background-tint-dark);
     position: absolute;
     top: 0;
     right: 0;

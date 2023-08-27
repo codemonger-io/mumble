@@ -1,10 +1,10 @@
 .container {
   & .markdown {
     --block-border-radius: 3px;
-    --code-color: #333;
-    --code-background-color: #f0f0f0;
-    --quote-color: #999;
-    --quote-background-color: #f6f6f6;
+    --code-color: var(--theme-color);
+    --code-background-color: var(--theme-background-shaded);
+    --quote-color: var(--theme-color-weak);
+    --quote-background-color: var(--theme-background-shaded);
 
     & p {
       margin-block-start: 1em;
@@ -131,7 +131,7 @@
     & p {
       &.attachments-summary {
         margin: 0;
-        color: #666;
+        color: var(--theme-color-weak);
         font-size: 0.8em;
       }
     }
@@ -154,7 +154,7 @@
 
   & .date-section {
     margin-block-start: 1rem;
-    color: #666;
+    color: var(--theme-color-weak);
     font-size: 0.8em;
   }
 }

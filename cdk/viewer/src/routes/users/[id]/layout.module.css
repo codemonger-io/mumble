@@ -15,17 +15,17 @@
     font-size: 1.0rem;
     padding: 1.0em;
     border: none;
-    background: #fff;
+    background: var(--theme-background-tint);
     box-sizing: border-box;
     box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
 
     @media (hover: hover) {
       &:hover {
-        background: #eee;
+        background: var(--theme-background-tint-light);
       }
     }
     &:active {
-      background: #ddd;
+      background: var(--theme-background-tint-dark);
     }
 
     &.move-to-top-transient {

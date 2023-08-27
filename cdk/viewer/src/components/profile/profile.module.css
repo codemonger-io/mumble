@@ -28,7 +28,7 @@
   & .preferred-name {
     font-size: 1.0rem;
     font-weight: 500;
-    color: #666;
+    color: var(--theme-color-weak);
     margin-block-start: 0;
   }
 
