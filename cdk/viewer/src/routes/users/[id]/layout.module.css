@@ -46,6 +46,9 @@
 }
 
 .navigation {
+  --max-header-width: calc(1 * var(--max-app-width) / 3);
+  --max-main-width: calc(2 * var(--max-app-width) / 3);
+
   box-shadow: 0 0 100px 1px rgba(0, 0, 0, 0.1);
   width: 100%;
   max-width: var(--max-app-width);
@@ -59,15 +62,16 @@
     & header {
       padding: 1rem;
       border-right: 1px solid var(--theme-border-color);
-      max-width: 20em;
+      width: var(--max-header-width);
+      max-width: var(--max-header-width);
       flex-shrink: 1;
     }
 
     & main {
-      width: 40em;
-      max-width: 40em;
+      width: var(--max-main-width);
+      max-width: var(--max-main-width);
       flex-grow: 1;
-      flex-shrink: 0;
+      flex-shrink: 0.6;
     }
 
     @media only screen and (max-width: 700px) {
