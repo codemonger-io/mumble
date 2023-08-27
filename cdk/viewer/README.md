@@ -1,4 +1,78 @@
-# Qwik City App ⚡️
+# Viewer Qwik App
+
+[Qwik](https://qwik.builder.io) app to view public contents on Mumble.
+
+## How to access the app
+
+The app is bundled in the [CDK stack](../README.md) and served under the path `/viewer/`.
+- `/viewer/users/[id]/`: serves user's profile, where `[id]` is the user ID: e.g., `/viewer/users/kemoto/`.
+  This path is redirected to activities page (`/viewer/users/[id]/activities/`).
+- `/viewer/users/[id]/activities/`: serves user's public activities: e.g., `/viewer/users/kemoto/activities/`.
+
+## Configuration
+
+This section describes how to configure the app for development.
+As long as you bundle the app through the CDK stack, you do not have to worry about this section.
+
+### AWS credentials
+
+This app needs AWS credentials with sufficient privileges to access the AWS resources of Mumble.
+If you want to use a profile on your local machine, you can specify it to `AWS_PROFILE` environment variable.
+Here is an example in my case:
+
+```sh
+export AWS_PROFILE=codemonger-io
+```
+
+### Setting the basepath
+
+If you want to serve this app under a basepath other than the root ('/'), you have to specify the basepath to `DISTRIBUTION_BASEPATH` environment variable.
+For example, if you want to serve the app under `/viewer/` basepath:
+
+```sh
+export DISTRIBUTION_BASEPATH=/viewer/
+```
+
+### Parameter path for domain name
+
+The Mumble service supposes the domain name to be in [Parameter Store on AWS Systems Manager](https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-parameter-store.html).
+If you want to test the domain name in Parameter Store, you have to specify the path to the parameter to `DOMAIN_NAME_PARAMETER_PATH` environment variable.
+The following command configures the environment variable with the output from the CDK stack:
+
+```sh
+export DOMAIN_NAME_PARAMETER_PATH=`aws cloudformation describe-stacks --stack-name mumble-development --query "Stacks[0].Outputs[?OutputKey=='DomainNameParameterPath'].OutputValue" --output text`
+```
+
+The domain name in Parameter Store precedes [`ORIGIN` environment variable](https://qwik.builder.io/docs/deployments/node/#production-deploy).
+
+### User table name
+
+Please specify the name of the DynamoDB table for users to `USER_TABLE_NAME` environment variable.
+The following command configures the environment variable with the output from the CDK stack:
+
+```sh
+export USER_TABLE_NAME=`aws cloudformation describe-stacks --stack-name mumble-development --query "Stacks[0].Outputs[?OutputKey=='UserTableName'].OutputValue" --output text`
+```
+
+### Object table name
+
+Please specify the name of the DynamoDB table for objects to `OBJECT_TABLE_NAME` environment variable.
+The following command configures the environment variable with the output from the CDK stack:
+
+```sh
+export OBJECT_TABLE_NAME=`aws cloudformation describe-stacks --stack-name mumble-development --query "Stacks[0].Outputs[?OutputKey=='ObjectTableName'].OutputValue" --output text`
+```
+
+### S3 bucket name for objects
+
+Please specify the name of the S3 bucket that stores objects to `OBJECTS_BUCKET_NAME` environment variable.
+The following command configures the environment variable with the output from the CDK stack:
+
+```sh
+export OBJECTS_BUCKET_NAME=`aws cloudformation describe-stacks --stack-name mumble-development --query "Stacks[0].Outputs[?OutputKey=='ObjectsBucketName'].OutputValue" --output text`
+```
+
+## The following sections are auto-generated from the Qwik CLI
 
 - [Qwik Docs](https://qwik.builder.io/)
 - [Discord](https://qwik.builder.io/chat)
