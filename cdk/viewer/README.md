@@ -72,7 +72,7 @@ The following command configures the environment variable with the output from t
 export OBJECTS_BUCKET_NAME=`aws cloudformation describe-stacks --stack-name mumble-development --query "Stacks[0].Outputs[?OutputKey=='ObjectsBucketName'].OutputValue" --output text`
 ```
 
-## The following sections are auto-generated from the Qwik CLI
+## FYI: The following sections are auto-generated from the Qwik CLI
 
 - [Qwik Docs](https://qwik.builder.io/)
 - [Discord](https://qwik.builder.io/chat)
