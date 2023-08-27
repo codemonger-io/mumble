@@ -112,12 +112,17 @@ export default component$(() => {
   return (
     <div ref={containerRef} class={styles.container}>
       <nav class={styles.navigation}>
-        <header>
-          <Profile user={userInfo.value} domainName={domainName.value} />
-        </header>
-        <main>
-          <Slot />
-        </main>
+        <div class={styles.level}>
+          <header>
+            <Profile user={userInfo.value} domainName={domainName.value} />
+          </header>
+          <main>
+            <Slot />
+          </main>
+        </div>
+        <footer class={styles.footer}>
+          <p>Powered by <a href="https://qwik.builder.io" target="_blank">Qwik</a></p>
+        </footer>
       </nav>
       <button
         class={[

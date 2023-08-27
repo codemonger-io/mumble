@@ -8,9 +8,12 @@ import styles from "./index.module.css";
 export default component$(() => {
   return (
     <div class={styles.container}>
-      <MumbleBrand class={styles.brand} />
+      <MumbleBrand class={styles.brand} alt="Mumble" />
       <p class={styles.links}>
-        <a href="https://github.com/codemonger-io/mumble"><SiGithub /></a>
+        <a href="https://github.com/codemonger-io/mumble" target="blank"><SiGithub /></a>
+      </p>
+      <p class={styles.acknowledgements}>
+        Powered by <a href="https://qwik.builder.io" target="_blank">Qwik</a>
       </p>
     </div>
   );
