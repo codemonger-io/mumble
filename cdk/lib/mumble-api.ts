@@ -1563,6 +1563,7 @@ export class MumbleApi extends Construct {
       'MumbleApiViewerCachePolicy',
       {
         comment: `Mumble API cache policy for the viewer app (${deploymentStage})`,
+        headerBehavior: cloudfront.CacheHeaderBehavior.allowList('X-QRL'),
         queryStringBehavior: cloudfront.CacheQueryStringBehavior.all(),
         defaultTtl: Duration.seconds(10),
       },
