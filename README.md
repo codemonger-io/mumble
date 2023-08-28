@@ -16,7 +16,7 @@ Mumble is not fully compliant with [ActivityPub](https://www.w3.org/TR/activityp
 - Be followed by another [Mastodon](https://joinmastodon.org) user
 
 Mumble also provides a simple [viewer app](./cdk/viewer/README.md) so that any guests can see your profile and public activites.
-You can promote your mumble account by [sharing the profile URL on the viewer app](#sharing-your-profile).
+You can promote your Mumble account by [sharing the profile URL on the viewer app](#sharing-your-profile).
 
 More features will come in the future.
 
@@ -63,6 +63,7 @@ Please refer to [MumbleBee's repository](https://github.com/codemonger-io/mumble
 ### Sharing your profile
 
 Your profile is served at `https://${YOUR_MUMBLE_DOMAIN_NAME}/viewer/users/${YOUR_ID}/`.
+If you want an example, you may visit [my profile](https://mumble.codemonger.io/viewer/users/kemoto/).
 
 ## Background
 
@@ -90,4 +91,6 @@ Thanks to [Redoc](https://github.com/Redocly/redoc), you can browse the Mumble A
 
 [MIT](./LICENSE)
 
-"Mumble Brand" (`mumble-brand.png`) by [codemonger](https://codemonger.io) is licensed under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
+The following images are licensed under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/):
+- "Mumble Brand" ([`mumble-brand.png`](./mumble-brand.png))
+- "Mumble Logo" ([`mumble-logo.svg`](./cdk/viewer/src/assets/mumble-logo.svg))
