@@ -1625,6 +1625,7 @@ export class MumbleApi extends Construct {
           },
           [`${VIEWER_BASEPATH}*`]: {
             origin: new origins.HttpOrigin(viewer.functionDomainName),
+            allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
             cachePolicy: viewerCachePolicy,
             viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.HTTPS_ONLY,
             // no CORS for the viewer app
