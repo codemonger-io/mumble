@@ -2,7 +2,11 @@
 
 [Qwik](https://qwik.builder.io) app to view public contents on Mumble.
 
-## How to access the app
+![screenshot](./screenshot.png)
+
+If you want to see the app in action, please see my _mumbling_ at [https://mumble.codemonger.io/viewer/users/kemoto/](https://mumble.codemonger.io/viewer/users/kemoto/).
+
+## Endpoints
 
 The app is bundled in the [CDK stack](../README.md) and served under the path `/viewer/`.
 - `/viewer/users/[id]/`: serves user's profile, where `[id]` is the user ID: e.g., `/viewer/users/kemoto/`.
