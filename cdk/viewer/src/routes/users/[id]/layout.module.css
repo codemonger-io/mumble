@@ -46,8 +46,8 @@
 }
 
 .navigation {
-  --max-header-width: calc(1 * var(--max-app-width) / 3);
-  --max-main-width: calc(2 * var(--max-app-width) / 3);
+  --max-header-width: 33%;
+  --max-main-width: 67%;
 
   box-shadow: 0 0 100px 1px rgba(0, 0, 0, 0.1);
   width: 100%;

@@ -25,7 +25,6 @@
       background-color: var(--code-background-color);
       border-radius: var(--block-border-radius);
       padding: 0.25em;
-      line-height: 1.5;
     }
 
     & pre {

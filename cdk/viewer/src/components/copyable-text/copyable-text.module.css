@@ -16,7 +16,7 @@
     & .text {
       display: inline-block;
       font-family: monospace;
-      width: 0px; /* not to determine the container width. */
+      padding-right: 2em;
     }
   }
 
@@ -26,11 +26,17 @@
     --background-color-active: var(--theme-background-tint-dark);
     position: absolute;
     top: 0;
-    right: 0;
+    right: -1px; /* to make sure the underlying text is covered. */
+    bottom: 0;
     background-color: var(--background-color);
     border: none;
     border-radius: var(--border-radius);
-    font-size: 120%;
+    box-sizing: border-box;
+    padding-top: 0;
+    padding-bottom: 0;
+    padding-left: 0.5em;
+    padding-right: 0.5em;
+    font-size: 1em;
 
     &:active {
       background-color: var(--background-color-active);
