@@ -9,6 +9,7 @@ import {
   AsyncIteratorWrapper,
   type FnAsyncIterator,
 } from './fn-async-iterator';
+import { stripObject } from './objects';
 
 /** Activity with the database key. */
 export type ActivityEntry = Activity & {
@@ -50,7 +51,8 @@ export function fetchActivities(
 ): FnAsyncIterator<ActivityEntry> {
   return AsyncIteratorWrapper
     .from(fetchMetaActivities(username, options), { lookAhead: 10 })
-    .map(loadActivity);
+    .map(loadActivity)
+    .map(async a => stripActivity(a));
 }
 
 /**
@@ -138,6 +140,16 @@ export async function loadActivity(
   } catch (err) {
     console.error('failed to load activity:', err);
     throw err;
+  }
+}
+
+/** Drops unnecessary fields from a given activity. */
+export function stripActivity(activity: ActivityEntry): ActivityEntry {
+  return {
+    _key: activity._key,
+    id: activity.id,
+    type: activity.type,
+    ...(activity.object ? { object: stripObject(activity.object) } : {}),
   }
 }
 

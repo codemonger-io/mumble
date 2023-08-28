@@ -15,6 +15,7 @@ import type { UserInfo } from '~/types/user-info';
 import { getDynamoDbClient } from '~/utils/dynamodb';
 import { isFailReturn } from '~/utils/fail-return';
 import { getDomainNameParameter } from '~/utils/parameters';
+import { stripUserInfo } from '~/utils/user-info';
 import styles from './layout.module.css';
 
 // fetches user information from the database
@@ -36,7 +37,7 @@ export const useUserInfo = routeLoader$(async requestEvent => {
     });
   }
   // TODO: verify UserInfo
-  return res.Item as UserInfo;
+  return stripUserInfo(res.Item as UserInfo);
 });
 
 // obtains the domain name.
