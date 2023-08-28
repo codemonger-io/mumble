@@ -79,15 +79,26 @@ export default component$(() => {
           isMoveToTopTransient.value = false;
         });
         const timeoutId = setTimeout(() => {
-          // transient state ensures that `display` is not `none`
-          // while the transition is running
-          isMoveToTopTransient.value = true;
-          isMoveToTopShown.value = false;
+          if (isMoveToTopShown.value && !isMoveToTopHeld.value) {
+            // transient state ensures that `display` is not `none`
+            // while the transition is running
+            isMoveToTopTransient.value = true;
+            isMoveToTopShown.value = false;
+          }
         }, 2000);
         cleanup(() => {
           clearTimeout(timeoutId);
           isMoveToTopShown.value = false;
         });
+      }
+    }
+  });
+  useTask$(({ track }) => {
+    track(() => isMoveToTopHeld.value);
+    if (isBrowser) {
+      if (isMoveToTopShown.value && !isMoveToTopHeld.value) {
+        isMoveToTopTransient.value = true;
+        isMoveToTopShown.value = false;
       }
     }
   });
