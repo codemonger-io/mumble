@@ -3,24 +3,20 @@
   position: relative;
   background-color: var(--theme-background-shaded);
   border-radius: var(--border-radius);
-  padding: 0.5em;
-  padding-right: 24px;
   margin-inline-start: 0;
   margin-inline-end: 0;
 
   & .clipped {
-    display: inline-block;
+    display: block;
+    padding: 0.5em;
+    margin-inline-start: 0;
+    margin-inline-end: 0;
     overflow-x: scroll;
-    padding-right: 24px;
-    width: 100%;
-    max-width: 12em;
-
-    @media only screen and (max-width: 700px) {
-      max-width: none;
-    }
 
     & .text {
+      display: inline-block;
       font-family: monospace;
+      width: 0px; /* not to determine the container width. */
     }
   }
 

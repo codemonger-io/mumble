@@ -60,6 +60,7 @@
     align-items: stretch;
 
     & header {
+      box-sizing: border-box;
       padding: 1rem;
       border-right: 1px solid var(--theme-border-color);
       width: var(--max-header-width);
@@ -68,6 +69,7 @@
     }
 
     & main {
+      box-sizing: border-box;
       width: var(--max-main-width);
       max-width: var(--max-main-width);
       flex-grow: 1;
@@ -80,7 +82,7 @@
       & header {
         border-right: none;
         border-bottom: 1px solid var(--theme-border-color);
-        width: calc(100% - 2rem);
+        width: 100%;
       }
 
       & main {
