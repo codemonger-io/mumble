@@ -1,0 +1,28 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  place-items: center;
+  place-content: center;
+  width: 100vw;
+  height: 100vh;
+
+  & .logo {
+    display: block;
+  }
+
+  & .links {
+    display: flex;
+    flex-direction: row;
+    margin-block-start: 2rem;
+
+    & a {
+      font-size: 2rem;
+      color: var(--theme-color);
+      text-decoration: none;
+    }
+  }
+
+  & .acknowledgement {
+    margin-block-start: 2rem;
+  }
+}

@@ -18,6 +18,7 @@ import { Statistics } from './statistics';
 import { SystemParameters } from './system-parameters';
 import { UserPool } from './user-pool';
 import { UserTable } from './user-table';
+import { Viewer } from './viewer';
 
 export interface Props extends StackProps {
   /** Deployment stage. */
@@ -62,6 +63,11 @@ export class CdkStack extends Stack {
       systemParameters,
       userTable,
     });
+    const viewer = new Viewer(this, 'Viewer', {
+      objectStore,
+      systemParameters,
+      userTable,
+    });
     const mumbleApi = new MumbleApi(this, 'MumbleApi', {
       deploymentStage,
       lambdaDependencies,
@@ -69,6 +75,7 @@ export class CdkStack extends Stack {
       systemParameters,
       userPool,
       userTable,
+      viewer,
     });
     const statistics = new Statistics(this, 'Statistics', {
       deadLetterQueue,
@@ -114,6 +121,10 @@ export class CdkStack extends Stack {
     new CfnOutput(this, 'UserPrivateKeyPathPrefix', {
       description: 'Path prefix of user private keys in Parameter Store on AWS Systems Manager',
       value: userTable.privateKeyPathPrefix,
+    });
+    new CfnOutput(this, 'ObjectTableName', {
+      description: 'Name of the DynamoDB table that stores objects',
+      value: objectStore.objectTable.tableName,
     });
     new CfnOutput(this, 'DomainNameParameterPath', {
       description: 'Path to the domain name stored in Parameter Store on AWS Systems Manager',

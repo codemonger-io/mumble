@@ -1,0 +1,107 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+
+  & .move-to-top {
+    display: none;
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    font-size: 1.0rem;
+    padding: 1.0em;
+    border: none;
+    background: var(--theme-background-tint);
+    box-sizing: border-box;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+
+    @media (hover: hover) {
+      &:hover {
+        background: var(--theme-background-tint-light);
+      }
+    }
+    &:active {
+      background: var(--theme-background-tint-dark);
+    }
+
+    &.move-to-top-transient {
+      display: inline;
+      opacity: 0;
+    }
+
+    &.move-to-top-active {
+      display: inline;
+      opacity: 1.0;
+
+      &.move-to-top-transient {
+        display: inline;
+        opacity: 0;
+      }
+    }
+  }
+}
+
+.navigation {
+  --max-header-width: 33%;
+  --max-main-width: 67%;
+
+  box-shadow: 0 0 100px 1px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  max-width: var(--max-app-width);
+
+  & .level {
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: stretch;
+
+    & header {
+      box-sizing: border-box;
+      padding: 1rem;
+      border-right: 1px solid var(--theme-border-color);
+      width: var(--max-header-width);
+      max-width: var(--max-header-width);
+      flex-shrink: 1;
+    }
+
+    & main {
+      box-sizing: border-box;
+      width: var(--max-main-width);
+      max-width: var(--max-main-width);
+      flex-grow: 1;
+      flex-shrink: 0.6;
+    }
+
+    @media only screen and (max-width: 700px) {
+      flex-direction: column;
+
+      & header {
+        border-right: none;
+        border-bottom: 1px solid var(--theme-border-color);
+        width: 100%;
+      }
+
+      & main {
+        width: 100%;
+      }
+
+      & header,
+      & main {
+        max-width: 100%;
+      }
+    }
+  }
+
+  & .footer {
+    display: flex;
+    flex-direction: row;
+    place-items: center;
+    place-content: center;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--theme-border-color);
+  }
+}

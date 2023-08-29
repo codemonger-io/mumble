@@ -1,0 +1,85 @@
+.container {
+  display: block;
+  position: relative;
+  background-color: var(--theme-background-shaded);
+  border-radius: var(--border-radius);
+  margin-inline-start: 0;
+  margin-inline-end: 0;
+
+  & .clipped {
+    display: block;
+    padding: 0.5em;
+    margin-inline-start: 0;
+    margin-inline-end: 0;
+    overflow-x: scroll;
+
+    & .text {
+      display: inline-block;
+      font-family: monospace;
+      padding-right: 2em;
+    }
+  }
+
+  & .copy-button {
+    --background-color: var(--theme-background-tint);
+    --background-color-hover: var(--theme-background-tint-light);
+    --background-color-active: var(--theme-background-tint-dark);
+    position: absolute;
+    top: 0;
+    right: -1px; /* to make sure the underlying text is covered. */
+    bottom: 0;
+    background-color: var(--background-color);
+    border: none;
+    border-radius: var(--border-radius);
+    box-sizing: border-box;
+    padding-top: 0;
+    padding-bottom: 0;
+    padding-left: 0.5em;
+    padding-right: 0.5em;
+    font-size: 1em;
+
+    &:active {
+      background-color: var(--background-color-active);
+    }
+
+    @media (hover: hover) {
+      transition: opacity 0.2s ease-in-out;
+      opacity: 0;
+      &:hover {
+        background-color: var(--background-color-hover);
+      }
+      &:active {
+        background-color: var(--background-color-active);
+      }
+    }
+  }
+
+  @media (hover: hover) {
+    &.hovered {
+      & .copy-button {
+        opacity: 1;
+      }
+    }
+  }
+
+  & .copy-notice {
+    display: block;
+    position: absolute;
+    font-size: 80%;
+    right: 0;
+    bottom: -1.6em;
+    padding: 0.5em;
+    border-radius: var(--border-radius);
+    opacity: 0;
+    transition: all 0.2s ease-in-out;
+
+    &.success {
+      background-color: var(--theme-success-color);
+      opacity: 1;
+    }
+    &.error {
+      background-color: var(--theme-error-color);
+      opacity: 1;
+    }
+  }
+}

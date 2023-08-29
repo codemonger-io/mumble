@@ -1,0 +1,39 @@
+.container {
+  display: flex;
+  flex-direction: column;
+
+  & .profile-image {
+    display: flex;
+    align-self: center;
+    width: 128px;
+    height: 128px;
+    place-items: stretch;
+    place-content: stretch;
+    overflow: hidden;
+
+    & svg,
+    & img {
+      display: block;
+      width: auto;
+      height: auto;
+    }
+  }
+
+  & .name {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-block-end: 0;
+  }
+
+  & .preferred-name {
+    font-size: 1.0rem;
+    font-weight: 500;
+    color: var(--theme-color-weak);
+    margin-block-start: 0;
+  }
+
+  & .mastodon {
+    color: #6364ff;
+    vertical-align: middle;
+  }
+}

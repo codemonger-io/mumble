@@ -5,6 +5,9 @@ Defines an [AWS Cloud Development Kit (CDK)](https://aws.amazon.com/cdk/) stack 
 This document desribes how to deploy and configure the CDK stack.
 [`/docs/architecture.md`](../docs/architecture.md) provides an overview of the Mumble service architecture.
 
+The Mumble service also includes a viewer app.
+Please refer to [`viewer` folder](./viewer/README.md) for more details.
+
 ## Prerequisites
 
 You need the following software installed:
@@ -256,6 +259,8 @@ aws cloudformation describe-stacks --stack-name mumble-$DEPLOYMENT_STAGE --query
 ```sh
 aws cloudformation describe-stacks --stack-name mumble-$DEPLOYMENT_STAGE --query "Stacks[0].Outputs[?OutputKey=='MumbleApiDistributionDomainName']|[0].OutputValue" --output text
 ```
+
+The [viewer app](./viewer/README.md) is served under the path `/viewer/`.
 
 ### Name of the S3 bucket for objects
 
