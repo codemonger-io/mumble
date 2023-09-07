@@ -88,6 +88,8 @@ export interface Props {
 export class ObjectStore extends Construct {
   /** S3 bucket for objects. */
   readonly objectsBucket: s3.IBucket;
+  /** S3 bucket for quarantined objects. */
+  readonly quarantineBucket: s3.IBucket;
   /** DynamoDB table to manage metadata and the history of objects. */
   readonly objectTable: dynamodb.Table;
   /**
@@ -148,6 +150,13 @@ export class ObjectStore extends Construct {
           allowedHeaders: ['*'],
         },
       ],
+      removalPolicy: RemovalPolicy.RETAIN,
+    });
+
+    // S3 bucket for quarantined objects
+    this.quarantineBucket = new s3.Bucket(this, 'QuarantineBucket', {
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      encryption: s3.BucketEncryption.S3_MANAGED,
       removalPolicy: RemovalPolicy.RETAIN,
     });
 
