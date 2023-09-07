@@ -7,11 +7,16 @@ You have to specify the following environment variables:
 * ``OBJECTS_BUCKET_NAME``: name of the S3 bucket that stores received objects.
 * ``DOMAIN_NAME_PARAMETER_PATH``: path to the parameter that stores the domain
   name in Parameter Store on AWS Systems Manager.
+* ``QUARANTINE_BUCKET_NAME``: name of the S3 bucket that stores quarantined
+  payloads.
 """
 
+import base64
+import hashlib
 import json
 import logging
 import os
+from typing import Any, Optional
 import boto3
 from libactivitypub.activity import Activity
 from libactivitypub.actor import Actor
@@ -27,7 +32,7 @@ from libmumble.exceptions import (
 )
 from libmumble.parameters import get_domain_name
 from libmumble.user_table import UserTable
-from libmumble.utils import to_urlsafe_base64
+from libmumble.utils import current_yyyymmdd_hhmmss_ssssss, to_urlsafe_base64
 import requests
 
 
@@ -45,6 +50,9 @@ USER_TABLE = UserTable(boto3.resource('dynamodb').Table(USER_TABLE_NAME))
 
 # bucket for objects
 OBJECTS_BUCKET_NAME = os.environ['OBJECTS_BUCKET_NAME']
+
+# bucket for quarantined payloads
+QUARANTINE_BUCKET_NAME = os.environ['QUARANTINE_BUCKET_NAME']
 
 
 def save_activity_in_inbox(activity_data: str, digest: str, recipient: str):
@@ -75,6 +83,32 @@ def save_activity_in_inbox(activity_data: str, digest: str, recipient: str):
     )
     # TODO: what kind of errors should we handle?
     LOGGER.debug('saved activity: %s', res)
+
+
+def quarantine(tag: str, payload: Any, options: Optional[Any]=None):
+    """Saves a given payload in the quarantine bucket.
+    """
+    data = {
+        'tag': tag,
+        'datetime': current_yyyymmdd_hhmmss_ssssss(),
+        'action': 'receive_inbound_activity',
+        'payload': payload,
+    }
+    if options is not None:
+        data['options'] = options
+    json_data = json.dumps(data).encode('utf-8')
+    digest = hashlib.sha256(json_data).digest()
+    object_name = base64.urlsafe_b64encode(digest).decode('utf-8').rstrip('=')
+    object_key = f'inbox/{object_name}.json'
+    LOGGER.debug('saving quarantined payload: %s', object_key)
+    s3_client = boto3.client('s3')
+    res = s3_client.put_object(
+        Bucket=QUARANTINE_BUCKET_NAME,
+        Key=object_key,
+        Body=json_data,
+        ChecksumSHA256=base64.b64encode(digest).decode('utf-8'),
+    )
+    LOGGER.debug('quarantined payload: %s', res)
 
 
 def lambda_handler(event, _context):
@@ -119,24 +153,29 @@ def lambda_handler(event, _context):
     try:
         signature = parse_signature(event['signature'])
     except ValueError as exc:
+        quarantine('bad_signature', event)
         raise UnauthorizedError(f'bad signature: {exc}') from exc
 
     LOGGER.debug('resolving signer: %s', signature['key_id'])
     try:
         signer = Actor.resolve_uri(signature['key_id'])
     except requests.HTTPError as exc:
+        quarantine('bad_signer', event)
         raise UnauthorizedError(
             f'failed to resolve signer: {signature["key_id"]}',
         ) from exc
     except ValueError as exc:
+        quarantine('bad_signer_format', event)
         raise UnauthorizedError(f'invalid actor: {exc}') from exc
 
     LOGGER.debug('loading public key')
     try:
         public_key = signer.public_key
     except (AttributeError, TypeError) as exc:
+        quarantine('bad_signer_format', event, signer.to_dict())
         raise UnauthorizedError(f'invalid actor: {exc}') from exc
     if public_key['id'] != signature['key_id']:
+        quarantine('bad_signer_format', event, signer.to_dict())
         raise UnauthorizedError(f'key ID mismatch: {signature["key_id"]}')
 
     LOGGER.debug('verifying signature')
@@ -155,6 +194,7 @@ def lambda_handler(event, _context):
             },
         )
     except (KeyError, ValueError, VerificationError) as exc:
+        quarantine('invalid_signature', event)
         raise UnauthorizedError(f'failed to authenticate: {exc}') from exc
 
     # once the signature is verified, we can parse the body
@@ -162,8 +202,10 @@ def lambda_handler(event, _context):
     try:
         activity = Activity.parse_object(json.loads(body))
     except ValueError as exc:
+        quarantine('invalid_activity', event)
         raise BadRequestError(f'{exc}') from exc
     if signer.id != activity.actor_id:
+        quarantine('invalid_activity', event, activity.to_dict())
         raise UnauthorizedError(
             f'signer and actor mismatch: {signer.id} != {activity.actor_id}',
         )
@@ -171,10 +213,12 @@ def lambda_handler(event, _context):
     LOGGER.debug('looking up user: %s', username)
     user = USER_TABLE.find_user_by_username(username, DOMAIN_NAME)
     if user is None:
+        quarantine('bad_recipient', event)
         raise NotFoundError(f'no such user: {username}')
 
     # saves the activity in an S3 bucket
     try:
         save_activity_in_inbox(body, event['digest'], username)
     except ValueError as exc:
+        quarantine('bad_signature', event)
         raise BadRequestError(f'{exc}') from exc
