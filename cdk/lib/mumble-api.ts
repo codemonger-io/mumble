@@ -138,6 +138,7 @@ export class MumbleApi extends Construct {
           OBJECTS_BUCKET_NAME: objectStore.objectsBucket.bucketName,
           DOMAIN_NAME_PARAMETER_PATH:
             systemParameters.domainNameParameter.parameterName,
+          QUARANTINE_BUCKET_NAME: objectStore.quarantineBucket.bucketName,
         },
         memorySize: 256,
         timeout: Duration.seconds(20),
@@ -148,6 +149,7 @@ export class MumbleApi extends Construct {
     systemParameters.domainNameParameter.grantRead(
       receiveInboundActivityLambda,
     );
+    objectStore.quarantineBucket.grantPut(receiveInboundActivityLambda);
     // - receives an activity or object posted to the outbox of a given user
     const receiveOutboundObjectLambda = new PythonFunction(
       this,
