@@ -16,9 +16,9 @@ import hashlib
 import json
 import logging
 import os
-from typing import Any, Optional
+from typing import Any, Optional, Tuple
 import boto3
-from libactivitypub.activity import Activity
+from libactivitypub.activity import Activity, Delete
 from libactivitypub.actor import Actor
 from libactivitypub.signature import (
     VerificationError,
@@ -41,6 +41,8 @@ LOGGER.setLevel(logging.DEBUG)
 # turns on logs from some dependencies
 logging.getLogger('libactivitypub').setLevel(logging.DEBUG)
 logging.getLogger('libmumble').setLevel(logging.DEBUG)
+
+PREFILTER_BODY_SIZE = 10 * 1024 # 10 KB
 
 DOMAIN_NAME = get_domain_name(boto3.client('ssm'))
 
@@ -111,6 +113,30 @@ def quarantine(tag: str, payload: Any, options: Optional[Any]=None):
     LOGGER.debug('quarantined payload: %s', res)
 
 
+def prefilter_activity(body: str) -> Tuple[Optional[str], Optional[Activity]]:
+    """Prefilters a given activity.
+
+    Patterns of a returned value:
+    * (``None``, ``None``): activity is too large to prefilter
+    * (``None``, non-``None``): activity is not prefiltered
+    * (non-``None``, non-``None``): activity is prefiltered
+
+    :raises ValueError: if ``body`` is not a valid ``Activity``.
+
+    :raises TypeError: if ``body`` is not a valid ``Activity``.
+    """
+    if len(body) > PREFILTER_BODY_SIZE:
+        return None, None
+    LOGGER.debug('prefiltering activity')
+    activity = Activity.parse_object(json.loads(body))
+    # prefilters "Delete" activities of the actor itself
+    if activity.type == 'Delete':
+        delete = activity.cast(Delete)
+        if delete.actor_id == delete.object_id:
+            return 'Delete of the actor itself', activity
+    return None, activity
+
+
 def lambda_handler(event, _context):
     """Runs on AWS Lambda.
 
@@ -148,6 +174,16 @@ def lambda_handler(event, _context):
     """
     username = event['username']
     LOGGER.debug('processing activity sent to: %s', username)
+
+    # parses activity for prefilter unless it is too large
+    try:
+        filter_tag, activity = prefilter_activity(event['body'])
+        if filter_tag:
+            LOGGER.debug('prefiltered activity: %s', filter_tag)
+            return
+    except (TypeError, ValueError) as exc:
+        quarantine('invalid_activity', event)
+        raise BadRequestError(f'{exc}') from exc
 
     LOGGER.debug('parsing signature')
     try:
@@ -198,12 +234,13 @@ def lambda_handler(event, _context):
         raise UnauthorizedError(f'failed to authenticate: {exc}') from exc
 
     # once the signature is verified, we can parse the body
-    LOGGER.debug('parsing activity')
-    try:
-        activity = Activity.parse_object(json.loads(body))
-    except ValueError as exc:
-        quarantine('invalid_activity', event)
-        raise BadRequestError(f'{exc}') from exc
+    if activity is None:
+        LOGGER.debug('parsing activity')
+        try:
+            activity = Activity.parse_object(json.loads(body))
+        except (TypeError, ValueError) as exc:
+            quarantine('invalid_activity', event)
+            raise BadRequestError(f'{exc}') from exc
     if signer.id != activity.actor_id:
         quarantine('invalid_activity', event, activity.to_dict())
         raise UnauthorizedError(
