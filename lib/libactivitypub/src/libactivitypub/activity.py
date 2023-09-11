@@ -56,6 +56,8 @@ class Activity(DictObject):
             return Announce.parse_object(obj)
         if obj_type == 'Create':
             return Create.parse_object(obj)
+        if obj_type == 'Delete':
+            return Delete.parse_object(obj)
         if obj_type == 'Follow':
             return Follow.parse_object(obj)
         if obj_type == 'Like':
@@ -286,6 +288,52 @@ class Create(MessageActivity):
             resolve_object(self._underlying['object'], object_store)
 
 
+class Delete(Activity):
+    """Wraps a "Delete" activity.
+    """
+    def __init__(self, underlying: Dict[str, Any]):
+        """Wraps a given "Follow" activity object.
+
+        :raises ValueError: if ``underlying`` does not represent an activity.
+
+        :raises TypeError: if ``underlying`` does not represent a valid object,
+        or if ``underlying`` does not have ``object``.
+        """
+        super().__init__(underlying)
+        if 'object' not in underlying:
+            raise TypeError('invalid Delete activity: object is missing')
+
+    @staticmethod
+    def parse_object(obj: Dict[str, Any]) -> 'Delete':
+        """Parses a given "Delete" activity object.
+
+        :raises ValueError: if ``obj`` does not represent an activity.
+
+        :raises TypeError: if ``obj`` does not represent a "Delete" activity
+        object.
+        """
+        if obj.get('type') != 'Delete':
+            raise TypeError(f'type must be "Delete": {obj.get("type")}')
+        return Delete(obj)
+
+    @property
+    def object_id(self) -> str:
+        """ID of the (to be) deleted object.
+        """
+        return Reference(self._underlying['object']).id
+
+    def visit(self, visitor: 'ActivityVisitor'):
+        visitor.visit_delete(self)
+
+    def resolve_objects(self, object_store: ObjectStore):
+        """Resolves the referenced object.
+
+        Resolves ``object``.
+        """
+        super().resolve_objects(object_store)
+        resolve_object(self._underlying['object'], object_store)
+
+
 class Follow(Activity):
     """Wraps a "Follow" activity.
     """
@@ -513,6 +561,11 @@ class ActivityVisitor(ABC):
         """Processes a "Create" activity.
         """
         LOGGER.debug('ignoring "Create": %s', create._underlying) # pylint: disable=protected-access
+
+    def visit_delete(self, delete: Delete):
+        """Processes a "Delete" activity.
+        """
+        LOGGER.debug('ignoring "Delete": %s', delete._underlying) # pylint: disable=protected-access
 
     def visit_follow(self, follow: Follow):
         """Processes a "Follow" activity.
