@@ -54,6 +54,7 @@ export class Viewer extends Construct {
     objectStore.objectsBucket.grantRead(this.handler);
     objectStore.objectTable.grantReadData(this.handler);
     systemParameters.domainNameParameter.grantRead(this.handler);
+    systemParameters.openAiApiKeyParameter.grantRead(this.handler);
     userTable.userTable.grantReadData(this.handler);
 
     this.functionUrl = this.handler.addFunctionUrl({
