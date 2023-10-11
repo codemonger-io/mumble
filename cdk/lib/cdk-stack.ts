@@ -130,5 +130,9 @@ export class CdkStack extends Stack {
       description: 'Path to the domain name stored in Parameter Store on AWS Systems Manager',
       value: systemParameters.domainNameParameter.parameterName,
     });
+    new CfnOutput(this, 'OpenAiApiKeyParameterPath', {
+      description: 'Path to the OpenAI API key stored in Parameter Store on AWS Systems Manager',
+      value: systemParameters.openAiApiKeyParameter.parameterName,
+    });
   }
 }

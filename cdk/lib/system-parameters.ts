@@ -9,6 +9,8 @@ export class SystemParameters extends Construct {
   readonly parameterPathPrefix: string;
   /** Parameter for the domain name. */
   readonly domainNameParameter: GhostStringParameter;
+  /** Parameter for the OpenAI API key. */
+  readonly openAiApiKeyParameter: GhostStringParameter;
 
   constructor(scope: Construct, id: string) {
     super(scope, id);
@@ -17,6 +19,9 @@ export class SystemParameters extends Construct {
 
     this.domainNameParameter = new GhostStringParameter(this, {
       parameterName: `${this.parameterPathPrefix}DOMAIN_NAME`,
+    });
+    this.openAiApiKeyParameter = new GhostStringParameter(this, {
+      parameterName: `${this.parameterPathPrefix}OPENAI_API_KEY`,
     });
   }
 }
