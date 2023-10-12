@@ -11,6 +11,7 @@ import { Construct } from 'constructs';
 
 import type { DeploymentStage } from './deployment-stage';
 import { Dispatcher } from './dispatcher';
+import { Indexer } from './indexer';
 import { LambdaDependencies } from './lambda-dependencies';
 import { MumbleApi } from './mumble-api';
 import { ObjectStore } from './object-store';
@@ -63,7 +64,9 @@ export class CdkStack extends Stack {
       systemParameters,
       userTable,
     });
+    const indexer = new Indexer(this, 'Indexer');
     const viewer = new Viewer(this, 'Viewer', {
+      indexer,
       objectStore,
       systemParameters,
       userTable,
@@ -133,6 +136,14 @@ export class CdkStack extends Stack {
     new CfnOutput(this, 'OpenAiApiKeyParameterPath', {
       description: 'Path to the OpenAI API key stored in Parameter Store on AWS Systems Manager',
       value: systemParameters.openAiApiKeyParameter.parameterName,
+    });
+    new CfnOutput(this, 'IndexerDatabaseBucketName', {
+      description: 'Name of the S3 bucket that stores the databases for the indexer',
+      value: indexer.databaseBucket.bucketName,
+    });
+    new CfnOutput(this, 'SearchSimilarMumblingsFunctionName', {
+      description: 'Name of the Lambda function that searches similar mumblings',
+      value: indexer.searchSimilarLambda.functionName,
     });
   }
 }
