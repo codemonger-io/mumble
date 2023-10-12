@@ -34,6 +34,7 @@
     "@codemonger-io/cdk-qwik-bundle": "github:codemonger-io/cdk-qwik-bundle#v0.1.0",
     "@types/uuid": "^9.0.1",
     "aws-cdk-lib": "^2.82.0",
+    "cargo-lambda-cdk": "^0.0.17",
     "cdk-cloudfront-function-bundle": "github:codemonger-io/cdk-cloudfront-function-bundle#v0.1.0",
     "cdk-ghost-string-parameter": "github:codemonger-io/cdk-ghost-string-parameter#v0.1.0",
     "cdk-rest-api-with-spec": "github:codemonger-io/cdk-rest-api-with-spec#v0.2.1",
