@@ -3,6 +3,7 @@ import { Duration, Fn, aws_lambda as lambda } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { QwikHandler } from '@codemonger-io/cdk-qwik-bundle';
 
+import type { Indexer } from './indexer';
 import type { ObjectStore } from './object-store';
 import type { SystemParameters } from './system-parameters';
 import type { UserTable } from './user-table';
@@ -18,6 +19,8 @@ export interface Props {
   readonly userTable: UserTable;
   /** Object store. */
   readonly objectStore: ObjectStore;
+  /** Indexer. */
+  readonly indexer: Indexer;
 }
 
 /** CDK construct that provisions the viewer app. */
@@ -30,7 +33,7 @@ export class Viewer extends Construct {
   constructor(scope: Construct, id: string, props: Props) {
     super(scope, id);
 
-    const { objectStore, systemParameters, userTable } = props;
+    const { indexer, objectStore, systemParameters, userTable } = props;
 
     this.handler = new QwikHandler(this, 'ViewerHandler', {
       entry: path.resolve('./viewer'),
@@ -41,6 +44,10 @@ export class Viewer extends Construct {
           systemParameters.domainNameParameter.parameterName,
         OBJECT_TABLE_NAME: objectStore.objectTable.tableName,
         OBJECTS_BUCKET_NAME: objectStore.objectsBucket.bucketName,
+        OPENAI_API_KEY_PARAMETER_PATH:
+          systemParameters.openAiApiKeyParameter.parameterName,
+        SEARCH_SIMILAR_MUMBLINGS_FUNCTION_NAME:
+          indexer.searchSimilarLambda.functionName,
         USER_TABLE_NAME: userTable.userTable.tableName,
       },
       memorySize: 256,
@@ -51,6 +58,7 @@ export class Viewer extends Construct {
         },
       },
     });
+    indexer.searchSimilarLambda.grantInvoke(this.handler);
     objectStore.objectsBucket.grantRead(this.handler);
     objectStore.objectTable.grantReadData(this.handler);
     systemParameters.domainNameParameter.grantRead(this.handler);
