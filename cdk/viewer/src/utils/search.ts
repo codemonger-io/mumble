@@ -8,6 +8,8 @@ let lambda: LambdaClient | null = null;
 export interface SimilarMumbling {
   /** ID (URL) of the mumbling fragment. */
   id: string;
+  /** Range in the mumbling. */
+  range: string;
   /** Approximate squared distance. */
   distance: number;
 }
@@ -22,7 +24,7 @@ export interface SimilarMumbling {
  */
 export async function searchSimilarMumblings(
   embedding: [number],
-): Promise<[SimilarMumbling]> {
+): Promise<SimilarMumbling[]> {
   if (process.env.SEARCH_SIMILAR_MUMBLINGS_FUNCTION_NAME == null) {
     throw new Error('SEARCH_SIMILAR_MUMBLINGS_FUNCTION_NAME is not set');
   }
@@ -46,5 +48,14 @@ export async function searchSimilarMumblings(
     throw new Error('similarity search function returned non-array');
   }
   // TODO: verify results
-  return results as [SimilarMumbling];
+  return results.map((r) => {
+    const url = new URL(r.id);
+    const range = url.hash.slice(1);
+    url.hash = '';
+    return {
+      id: url.toString(),
+      range,
+      distance: r.distance,
+    };
+  });
 }
