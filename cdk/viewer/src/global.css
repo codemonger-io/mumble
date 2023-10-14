@@ -3,6 +3,8 @@
   --mobile-breakpoint: 700px; /* unfortunately, unavailable in media queries */
   --border-radius: 3px;
 
+  --content-padding: 1.5rem;
+
   --theme-color: rgba(0, 0, 0, 0.7);
   --theme-color-weak: rgba(77, 77, 77, 0.7);
   --theme-background-color: #fff9f5;
