@@ -8,8 +8,9 @@ import {
   useTask$,
 } from '@builder.io/qwik';
 import { isBrowser } from '@builder.io/qwik/build';
-import { routeLoader$ } from '@builder.io/qwik-city';
+import { Link, routeLoader$ } from '@builder.io/qwik-city';
 
+import MumbleLogo from '~/assets/mumble-logo.svg?jsx';
 import Profile from '~/components/profile/profile';
 import type { UserInfo } from '~/types/user-info';
 import { getDynamoDbClient } from '~/utils/dynamodb';
@@ -129,7 +130,19 @@ export default component$(() => {
             <Profile user={userInfo.value} domainName={domainName.value} />
           </header>
           <main>
-            <Slot />
+            <div class={styles.tabs}>
+              <div class={styles.tab}>
+                <Link href="../activities">
+                  <MumbleLogo class={styles['mumble-logo']}/> Recent
+                </Link>
+              </div>
+              <div class={styles.tab}>
+                <Link href="../search">💭 Search</Link>
+              </div>
+              <div class={styles['tab-content']}>
+                <Slot />
+              </div>
+            </div>
           </main>
         </div>
         <footer class={styles.footer}>
