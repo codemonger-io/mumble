@@ -20,7 +20,6 @@ export const useSearchMumbling = routeAction$(
         errorMessage: 'failed to create embedding vector',
       });
     }
-    console.log('searching for similar mumblings:', embedding);
     let results;
     try {
       results = await searchSimilarMumblings(embedding);
@@ -40,7 +39,6 @@ export const useSearchMumbling = routeAction$(
         errorMessage: 'failed to search for similar mumblings',
       });
     }
-    console.log('resolving mumblings:', results);
     let mumblings;
     try {
       mumblings = await Promise.all(results.map(async (r) => {
