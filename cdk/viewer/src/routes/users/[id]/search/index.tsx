@@ -107,7 +107,7 @@ export default component$(() => {
             <textarea
               name="terms"
               bind:value={terms}
-              placeholder="Free-form text to search: keywords, sentences, etc."
+              placeholder="Free-form text to search: keywords, questions, etc."
               maxLength={MAX_TERMS_LENGTH}
             />
           </Form>
