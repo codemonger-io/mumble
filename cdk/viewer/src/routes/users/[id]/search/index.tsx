@@ -1,4 +1,4 @@
-import { component$ } from '@builder.io/qwik';
+import { component$, useSignal, useTask$ } from '@builder.io/qwik';
 import { Form, routeAction$, z, zod$ } from '@builder.io/qwik-city';
 
 import ActivityLoading from '~/components/activity-loading/activity-loading';
@@ -61,6 +61,9 @@ export const useSearchMumbling = routeAction$(
   }),
 );
 
+// Debouncing before triggering search.
+const DEBOUNCING_IN_MS = 800;
+
 export default component$(() => {
   const search = useSearchMumbling();
   if (search.value?.failed) {
@@ -70,6 +73,17 @@ export default component$(() => {
       return <p>{search.value.errorMessage}</p>;
     }
   }
+
+  const terms = useSignal(search.formData?.get('terms')?.toString() ?? '');
+  useTask$(({ track, cleanup }) => {
+    track(() => terms.value);
+    const debounced = setTimeout(() => {
+      if (terms.value.length > 0) {
+        search.submit({ terms: terms.value });
+      }
+    }, DEBOUNCING_IN_MS);
+    cleanup(() => clearTimeout(debounced));
+  });
 
   return (
     <section class={styles.container}>
@@ -84,14 +98,14 @@ export default component$(() => {
           <Form action={search}>
             <textarea
               name="terms"
-              value={search.formData?.get('terms')?.toString() ?? ''}
+              bind:value={terms}
               placeholder="Free-form text to search: keywords, sentences, etc."
               maxlength={1024}
             />
-            <button type="submit">Search</button>
           </Form>
         </div>
         <div class={styles.objects}>
+          <h3 class={styles.title}>Similar mumblings</h3>
           {search.isRunning
             ? <ActivityLoading message="Searching..." />
             : search.value?.success && search.value.mumblings?.map((m) => (
