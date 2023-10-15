@@ -25,7 +25,7 @@ If you want to use a profile on your local machine, you can specify it to `AWS_P
 Here is an example in my case:
 
 ```sh
-export AWS_PROFILE=codemonger-io
+export AWS_PROFILE=codemonger-jp
 ```
 
 ### Setting the basepath
@@ -74,6 +74,22 @@ The following command configures the environment variable with the output from t
 
 ```sh
 export OBJECTS_BUCKET_NAME=`aws cloudformation describe-stacks --stack-name mumble-development --query "Stacks[0].Outputs[?OutputKey=='ObjectsBucketName'].OutputValue" --output text`
+```
+
+### Parameter path for the OpenAI API key
+
+Please specify the path to the parameter that stores the OpenAI API key in the Parameter Store on AWS Systems Manager to `OPENAI_API_KEY_PARAMETER_PATH` environment variable.
+
+```sh
+export OPENAI_API_KEY_PARAMETER_PATH=`aws cloudformation describe-stacks --stack-name mumble-development --query "Stacks[0].Outputs[?OutputKey=='OpenAiApiKeyParameterPath'].OutputValue" --output text`
+```
+
+### Name of the Lambda function that searches similar mumblings
+
+Please specify the name of the Lambda function that searches similar mumblings to `SEARCH_SIMILAR_MUMBLINGS_FUNCTION_NAME` environment variable.
+
+```sh
+export SEARCH_SIMILAR_MUMBLINGS_FUNCTION_NAME=`aws cloudformation describe-stacks --stack-name mumble-development --query "Stacks[0].Outputs[?OutputKey=='SearchSimilarMumblingsFunctionName'].OutputValue" --output text`
 ```
 
 ## FYI: The following sections are auto-generated from the Qwik CLI
