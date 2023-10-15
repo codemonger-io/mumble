@@ -43,8 +43,17 @@ export const useSearchMumbling = routeAction$(
     console.log('resolving mumblings:', results);
     let mumblings;
     try {
-      mumblings = await Promise.all(results.map((r) => loadObject(r.id)));
-      mumblings = mumblings.map((m) => stripObject(m));
+      mumblings = await Promise.all(results.map(async (r) => {
+        try {
+          return await loadObject(r.id);
+        } catch (err) {
+          // some objects may not be resolved in the development environment
+          return null;
+        }
+      }));
+      mumblings = mumblings
+        .filter((m) => m != null)
+        .map((m) => stripObject(m!));
     } catch (err) {
       console.error(err);
       return requestEvent.fail(500, {
@@ -61,6 +70,7 @@ export const useSearchMumbling = routeAction$(
   }),
 );
 
+const MAX_TERMS_LENGTH = 1024;
 // Debouncing before triggering search.
 const DEBOUNCING_IN_MS = 800;
 
@@ -100,7 +110,7 @@ export default component$(() => {
               name="terms"
               bind:value={terms}
               placeholder="Free-form text to search: keywords, sentences, etc."
-              maxlength={1024}
+              maxLength={MAX_TERMS_LENGTH}
             />
           </Form>
         </div>
