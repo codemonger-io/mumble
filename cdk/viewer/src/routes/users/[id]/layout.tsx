@@ -8,7 +8,7 @@ import {
   useTask$,
 } from '@builder.io/qwik';
 import { isBrowser } from '@builder.io/qwik/build';
-import { Link, routeLoader$ } from '@builder.io/qwik-city';
+import { Link, routeLoader$, useLocation } from '@builder.io/qwik-city';
 
 import MumbleLogo from '~/assets/mumble-logo.svg?jsx';
 import Profile from '~/components/profile/profile';
@@ -57,6 +57,8 @@ export const useDomainName = routeLoader$(async () => {
   return 'localhost';
 });
 
+type TabName = 'activities' | 'search';
+
 export default component$(() => {
   const userInfo = useUserInfo();
   if (isFailReturn(userInfo.value)) {
@@ -64,6 +66,31 @@ export default component$(() => {
   }
 
   const domainName = useDomainName();
+
+  // determines the active tab.
+  const activeTab = useSignal<TabName>();
+  const location = useLocation();
+  useTask$(async ({ track }) => {
+    track(() => location.url);
+    const match = location.url.pathname.match(/\/users\/\w+\/(\w+)\/?/);
+    if (match != null) {
+      const tab = match[1];
+      switch (tab) {
+        case 'activities':
+          activeTab.value = 'activities';
+          break;
+        case 'search':
+          activeTab.value = 'search';
+          break;
+        default:
+          console.error('unknown tab:', tab);
+          activeTab.value = undefined;
+      }
+    } else {
+      console.error('invalid path:', location.url.pathname);
+      activeTab.value = undefined;
+    }
+  });
 
   // hides the "Move to top" button after 2 seconds,
   // but keeps it visible if the user is hovering over or pressing it.
@@ -130,14 +157,22 @@ export default component$(() => {
             <Profile user={userInfo.value} domainName={domainName.value} />
           </header>
           <main>
-            <div class={styles.tabs}>
-              <div class={styles.tab}>
-                <Link href="../activities">
-                  <MumbleLogo class={styles['mumble-logo']}/> Recent
-                </Link>
-              </div>
-              <div class={styles.tab}>
-                <Link href="../search">💭 Search</Link>
+            <div class={styles['tab-container']}>
+              <div class={styles.tabs}>
+                <div class={[
+                  styles.tab,
+                  { 'is-active': activeTab.value === 'activities' },
+                ]}>
+                  <Link prefetch href="../activities">
+                    <MumbleLogo class={styles['mumble-logo']}/> Recent
+                  </Link>
+                </div>
+                <div class={[
+                  styles.tab,
+                  { 'is-active': activeTab.value === 'search' },
+                ]}>
+                  <Link prefetch href="../search">💭 Search</Link>
+                </div>
               </div>
               <div class={styles['tab-content']}>
                 <Slot />
