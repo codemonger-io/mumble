@@ -159,19 +159,25 @@ export default component$(() => {
           <main>
             <div class={styles['tab-container']}>
               <div class={styles.tabs}>
-                <div class={[
-                  styles.tab,
-                  { 'is-active': activeTab.value === 'activities' },
-                ]}>
-                  <Link prefetch href="../activities">
+                <div
+                  id="activities"
+                  class={[
+                    styles.tab,
+                    { 'is-active': activeTab.value === 'activities' },
+                  ]}
+                >
+                  <Link prefetch href="../activities/#activities">
                     <MumbleLogo class={styles['mumble-logo']}/> Recent
                   </Link>
                 </div>
-                <div class={[
-                  styles.tab,
-                  { 'is-active': activeTab.value === 'search' },
-                ]}>
-                  <Link prefetch href="../search">💭 Search</Link>
+                <div
+                  id="search"
+                  class={[
+                    styles.tab,
+                    { 'is-active': activeTab.value === 'search' },
+                  ]}
+                >
+                  <Link prefetch href="../search/#search">💭 Search</Link>
                 </div>
               </div>
               <div class={styles['tab-content']}>
