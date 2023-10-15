@@ -3,4 +3,22 @@
     padding-left: var(--content-padding);
     line-height: 1.0;
   }
+
+  & .content {
+    & .form {
+      padding: 0 var(--content-padding) 0;
+
+      textarea {
+        display: block;
+        box-sizing: border-box;
+        width: 100%;
+        font-size: 1.0em;
+        color: var(--theme-color);
+        padding: 0.5em;
+        border: 1px solid var(--theme-border-color);
+        border-radius: var(--border-radius);
+        resize: vertical;
+      }
+    }
+  }
 }

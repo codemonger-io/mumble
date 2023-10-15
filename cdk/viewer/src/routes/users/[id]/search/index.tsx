@@ -74,20 +74,23 @@ export default component$(() => {
   return (
     <section class={styles.container}>
       <h2 class={styles.title}>
-        💭 Search mumbling
+        💭 Search mumblings
       </h2>
       <div class={styles.content}>
-        <Form action={search}>
-          <label>
-            Similarity search:
+        <div class={styles.form}>
+          <p>
+            Type any text in the following form, and we will find similar mumblings.
+          </p>
+          <Form action={search}>
             <textarea
               name="terms"
               value={search.formData?.get('terms')?.toString() ?? ''}
               placeholder="Free-form text to search: keywords, sentences, etc."
+              maxlength={1024}
             />
-          </label>
-          <button type="submit">Search</button>
-        </Form>
+            <button type="submit">Search</button>
+          </Form>
+        </div>
         <div class={styles.objects}>
           {search.isRunning
             ? <ActivityLoading message="Searching..." />
