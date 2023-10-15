@@ -81,7 +81,6 @@
 
       & header {
         border-right: none;
-        border-bottom: 1px solid var(--theme-border-color);
         width: 100%;
       }
 
@@ -106,8 +105,52 @@
   }
 }
 
-.tab {
-  & .mumble-logo {
-    vertical-align: middle;
+.tab-container {
+  & .tabs {
+    display: flex;
+    flex-direction: row;
+
+    &::before {
+      content: "";
+      min-width: var(--content-padding);
+      max-width: var(--content-padding);
+      border-bottom: 1px solid var(--theme-border-color);
+    }
+    &::after {
+      content: "";
+      border-bottom: 1px solid var(--theme-border-color);
+      flex-grow: 1;
+    }
+
+    & .tab {
+      border: 1px solid var(--theme-border-color);
+      border-radius: 6px 6px 0 0;
+
+      & .mumble-logo {
+        vertical-align: middle;
+      }
+
+      a {
+        display: inline-block;
+        padding: 0.5em 1.0em 0.25em;
+        text-decoration: none;
+      }
+      &:global(.is-active) {
+        border-bottom: none;
+
+        a {
+          cursor: default;
+        }
+      }
+
+      &:not(:global(.is-active)) {
+        &:hover {
+          background: var(--theme-background-tint-light);
+        }
+        &:active {
+          background: var(--theme-background-tint-dark);
+        }
+      }
+    }
   }
 }
