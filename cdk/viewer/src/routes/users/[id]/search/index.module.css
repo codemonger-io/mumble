@@ -12,7 +12,7 @@
         display: block;
         box-sizing: border-box;
         width: 100%;
-        font-size: 1.0em;
+        font-size: 1.0rem;
         color: var(--theme-color);
         padding: 0.5em;
         border: 1px solid var(--theme-border-color);
