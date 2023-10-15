@@ -133,30 +133,34 @@ export default component$(() => {
   });
 
   // shows the "Move to top" button when the user scrolls up.
-  const containerRef = useSignal<Element>();
+  // scrolls to the top of the main container when the button is clicked.
+  const mainContainerRef = useSignal<HTMLElement>();
   const lastScrollY = useSignal(0);
   useOnWindow('scroll', $(() => {
-    const containerRect = containerRef.value?.getBoundingClientRect();
-    if (containerRect == null) {
-      return;
-    }
     const scrollDelta = window.scrollY - lastScrollY.value;
     lastScrollY.value = window.scrollY;
     if (scrollDelta < 0) {
-      if (window.scrollY > window.innerHeight) {
+      // note that the bounding client rect is relative to the viewport; i.e.,
+      // it includes the scroll offset
+      const containerTopOffset =
+        mainContainerRef.value?.getBoundingClientRect().top ?? 0;
+      if (-containerTopOffset > window.innerHeight) {
         isMoveToTopShown.value = true;
+      } else if (isMoveToTopShown.value) {
+        isMoveToTopTransient.value = true;
+        isMoveToTopShown.value = false;
       }
     }
   }));
 
   return (
-    <div ref={containerRef} class={styles.container}>
+    <div class={styles.container}>
       <nav class={styles.navigation}>
         <div class={styles.level}>
           <header>
             <Profile user={userInfo.value} domainName={domainName.value} />
           </header>
-          <main>
+          <main ref={mainContainerRef}>
             <div class={styles['tab-container']}>
               <div class={styles.tabs}>
                 <div
@@ -196,7 +200,14 @@ export default component$(() => {
           (isMoveToTopShown.value || isMoveToTopHeld.value) && styles['move-to-top-active'],
           isMoveToTopTransient.value && styles['move-to-top-transient'],
         ]}
-        onClick$={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        onClick$={() => {
+          const containerTopOffset =
+            mainContainerRef.value?.getBoundingClientRect().top ?? 0;
+          window.scrollTo({
+            top: window.scrollY + containerTopOffset,
+            behavior: 'smooth',
+          });
+        }}
         onPointerEnter$={() => isMoveToTopHeld.value = true}
         onPointerLeave$={() => isMoveToTopHeld.value = false}
         onPointerDown$={() => isMoveToTopHeld.value = true}
