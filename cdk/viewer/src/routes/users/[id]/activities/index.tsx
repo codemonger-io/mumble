@@ -113,7 +113,7 @@ export default component$(() => {
   return (
     <section ref={containerRef} class={styles.container}>
       <h2 class={styles.title}>
-        <MumbleLogo class={styles['mumble-logo']}/> Recent mumbling
+        <MumbleLogo class={styles['mumble-logo']}/> Recent mumblings
       </h2>
       <div class={styles.content}>
         {activities.value.map(activity => (
