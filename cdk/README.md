@@ -139,7 +139,7 @@ Please replace `$DEPLOYMENT_STAGE` with a proper deployment stage: "development"
 
 ### Setting the domain name parameter
 
-You have to set the parameter that store the domain name of the Mumble endpoints in Parameter Store on AWS Systems Manager.
+You have to set the parameter that stores the domain name of the Mumble endpoints in the Parameter Store on AWS Systems Manager.
 The path of the parameter is available as the CloudFormation output `DomainNameParameterPath`.
 
 You can use the npm script [`setup-domain-name`](./scripts/setup-domain-name.ts) to configure it.
@@ -207,6 +207,18 @@ npm run create-user -- \
     --stage production
 ```
 
+### Setting the OpenAI API key
+
+You have to set the parameter that stores the [OpenAI API key](https://platform.openai.com/docs/api-reference/authentication) in the Parameter Store on AWS Systems Manager.
+The path of the parameter is available as the [CloudFormation output `OpenAiApiKeyParameterPath`](#parameter-path-for-the-openai-api-key).
+
+### Configuring similarity search database path
+
+The [Lambda function to perform similarity search over mumblings](#name-of-the-lambda-function-that-searches-similar-mumblings) needs the path to the database header file is in the environment variable `DATABASE_HEADER_KEY`.
+It must be a key in the [S3 bucket for the indexer database files](#name-of-the-s3-bucket-for-the-indexer-database-files).
+
+For now, please use [`mumble-embedding`](https://github.com/codemonger-io/mumble-embedding) to build the database.
+
 ## Outputs from the CDK stack
 
 The following subsections show the CDK stack outputs and how to obtain them.
@@ -268,4 +280,28 @@ The [viewer app](./viewer/README.md) is served under the path `/viewer/`.
 
 ```sh
 aws cloudformation describe-stacks --stack-name mumble-$DEPLOYMENT_STAGE --query "Stacks[0].Outputs[?OutputKey=='ObjectsBucketName']|[0].OutputValue" --output text
+```
+
+### Parameter path for the OpenAI API key
+
+`OpenAiApiKeyParameterPath` contains the path to the parameter that stores the OpenAI API key in the Parameter Store on AWS Systems Manager.
+
+```sh
+aws cloudformation describe-stacks --stack-name mumble-$DEPLOYMENT_STAGE --query "Stacks[0].Outputs[?OutputKey=='OpenAiApiKeyParameterPath']|[0].OutputValue" --output text
+```
+
+### Name of the S3 bucket for the indexer database files
+
+`IndexerDatabaseBucketName` contains the name of the S3 bucket that stores the database files for the indexer.
+
+```sh
+aws cloudformation describe-stacks --stack-name mumble-$DEPLOYMENT_STAGE --query "Stacks[0].Outputs[?OutputKey=='IndexerDatabaseBucketName']|[0].OutputValue" --output text
+```
+
+### Name of the Lambda function that searches similar mumblings
+
+`SearchSimilarMumblingsFunctionName` contains the name of the Lambda function that searches similar mumblings.
+
+```sh
+aws cloudformation describe-stacks --stack-name mumble-$DEPLOYMENT_STAGE --query "Stacks[0].Outputs[?OutputKey=='SearchSimilarMumblingsFunctionName']|[0].OutputValue" --output text
 ```
