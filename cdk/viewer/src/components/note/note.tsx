@@ -28,11 +28,13 @@ export default component$<NoteProps>(({ note }: NoteProps) => {
             {note.attachment.length}
             {note.attachment.length > 1 ? 'attachments' : 'attachment'}
           </p>
-          {note.attachment.filter(a => a.type === 'Image').map(attachment => (
-            <article key={attachment.url} class={styles['image-container']}>
-              <img src={attachment.url}></img>
-            </article>
-          ))}
+          <div class={styles['attachment-list']}>
+            {note.attachment.filter(a => a.type === 'Image').map(attachment => (
+              <article key={attachment.url} class={styles['image-container']}>
+                <img src={attachment.url} width={200} height={150}></img>
+              </article>
+            ))}
+          </div>
         </div>
       )}
       <div class={styles['date-section']}>

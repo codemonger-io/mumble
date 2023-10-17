@@ -135,18 +135,26 @@
       }
     }
 
-    & .image-container {
+    & .attachment-list {
       display: flex;
-      width: 200px;
-      height: 150px;
-      place-items: stretch;
-      place-content: stretch;
+      flex-direction: row;
+      place-items: center;
+      place-content: flex-start;
 
-      & img,
-      & svg {
-        display: block;
-        width: auto;
-        height: auto;
+      & .image-container {
+        max-width: 200px;
+        max-height: 150px;
+
+        &:not(:last-child) {
+          margin-inline-end: 1rem;
+        }
+
+        & img,
+        & svg {
+          display: block;
+          width: 100%;
+          height: 100%;
+        }
       }
     }
   }
