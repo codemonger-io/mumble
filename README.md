@@ -17,6 +17,7 @@ Mumble is not fully compliant with [ActivityPub](https://www.w3.org/TR/activityp
 
 Mumble also provides a simple [viewer app](./cdk/viewer/README.md) so that any guests can see your profile and public activites.
 You can promote your Mumble account by [sharing the profile URL on the viewer app](#sharing-your-profile).
+The viewer app also provides a search form to find similar mumblings, which is powered by [FlechasDB](https://github.com/codemonger-io/flechasdb).
 
 More features will come in the future.
 
