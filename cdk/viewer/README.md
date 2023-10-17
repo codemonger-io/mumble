@@ -2,7 +2,7 @@
 
 [Qwik](https://qwik.builder.io) app to view public contents on Mumble.
 
-![screenshot](./screenshot.png)
+![screenshot](./screenshot.jpg)
 
 If you want to see the app in action, please see my _mumbling_ at [https://mumble.codemonger.io/viewer/users/kemoto/](https://mumble.codemonger.io/viewer/users/kemoto/).
 
@@ -12,6 +12,7 @@ The app is bundled in the [CDK stack](../README.md) and served under the path `/
 - `/viewer/users/[id]/`: serves user's profile, where `[id]` is the user ID: e.g., `/viewer/users/kemoto/`.
   This path is redirected to activities page (`/viewer/users/[id]/activities/`).
 - `/viewer/users/[id]/activities/`: serves user's public activities: e.g., `/viewer/users/kemoto/activities/`.
+- `/viewer/users/[id]/search/`: serves the search form for user's public activities: e.g., `/viewer/users/kemoto/search/`.
 
 ## Configuration
 

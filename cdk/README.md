@@ -209,12 +209,13 @@ npm run create-user -- \
 
 ### Setting the OpenAI API key
 
+The [viewer app](./viewer/README.md) uses [OpenAI's text embeddings API](https://platform.openai.com/docs/guides/embeddings) to perform similarity search over mumblings.
 You have to set the parameter that stores the [OpenAI API key](https://platform.openai.com/docs/api-reference/authentication) in the Parameter Store on AWS Systems Manager.
 The path of the parameter is available as the [CloudFormation output `OpenAiApiKeyParameterPath`](#parameter-path-for-the-openai-api-key).
 
 ### Configuring similarity search database path
 
-The [Lambda function to perform similarity search over mumblings](#name-of-the-lambda-function-that-searches-similar-mumblings) needs the path to the database header file is in the environment variable `DATABASE_HEADER_KEY`.
+The [Lambda function to perform similarity search over mumblings](#name-of-the-lambda-function-that-searches-similar-mumblings) needs the path to the database header file in the environment variable `DATABASE_HEADER_KEY`.
 It must be a key in the [S3 bucket for the indexer database files](#name-of-the-s3-bucket-for-the-indexer-database-files).
 
 For now, please use [`mumble-embedding`](https://github.com/codemonger-io/mumble-embedding) to build the database.
