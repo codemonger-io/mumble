@@ -156,7 +156,7 @@ class RecipientCollector(ActivityVisitor):
         try:
             obj = DictObject.resolve(recipient)
         except requests.HTTPError as exc:
-            if exc.response.status_code == 410:
+            if exc.response.status_code in [404, 410]:
                 LOGGER.warning('recipient is gone: %s', recipient)
                 # TODO: issue an event to delete the recipient
                 return
