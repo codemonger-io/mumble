@@ -9,6 +9,7 @@
     "watch": "tsc -w",
     "test": "jest",
     "cdk": "cdk",
+    "type-check": "tsc --noEmit",
     "setup-domain-name": "ts-node scripts/setup-domain-name.ts",
     "create-user": "ts-node scripts/create-user.ts"
   },
